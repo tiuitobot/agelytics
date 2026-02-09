@@ -16,6 +16,7 @@ from pathlib import Path
 from .parser import parse_replay
 from .db import get_db, insert_match, get_match_by_id
 from .report import format_duration
+from .patterns import generate_patterns
 
 # Config
 REPLAY_DIR = "/mnt/c/Users/administrador/Games/Age of Empires 2 DE/76561198028659538/savegame/"
@@ -190,6 +191,14 @@ def check_new_replays(db_path=None):
             new_matches.append(full_match)
 
     save_state(seen)
+    
+    # Update patterns if new matches found
+    if new_matches:
+        try:
+            generate_patterns(db_path=db_path)
+        except Exception as e:
+            print(f"Pattern generation failed: {e}", file=sys.stderr)
+    
     conn.close()
 
     # Notify for each new match

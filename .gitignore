@@ -6,3 +6,4 @@ data/*.db
 .env
 data/watcher_state.json
 data/pending_notifications.json
+data/patterns.json

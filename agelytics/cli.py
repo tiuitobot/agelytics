@@ -9,6 +9,7 @@ from . import __version__
 from .parser import parse_replay
 from .db import get_db, insert_match, get_last_match, get_match_by_id, get_player_stats, count_matches, get_all_matches
 from .report import match_report, player_summary, matches_table
+from .patterns import generate_patterns, format_patterns_text
 
 
 def cmd_ingest(args):
@@ -107,6 +108,13 @@ def cmd_stats(args):
     return 0
 
 
+def cmd_patterns(args):
+    """Generate and display pattern analysis."""
+    patterns = generate_patterns(player=args.player, db_path=args.db)
+    print(format_patterns_text(patterns))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="agelytics",
@@ -134,6 +142,10 @@ def main():
     p_stats = subs.add_parser("stats", help="Player statistics")
     p_stats.add_argument("player", help="Player name")
     
+    # patterns
+    p_patterns = subs.add_parser("patterns", help="Generate and show pattern analysis")
+    p_patterns.add_argument("--player", "-p", default="blzulian", help="Player name")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -146,6 +158,8 @@ def main():
         return cmd_report(args)
     elif args.command == "stats":
         return cmd_stats(args)
+    elif args.command == "patterns":
+        return cmd_patterns(args)
 
 
 if __name__ == "__main__":
