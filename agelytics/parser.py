@@ -143,6 +143,7 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
         "researches": [],
         "buildings": {},
         "resign_player": None,
+        "tc_idle": {},
     }
     
     try:
@@ -224,6 +225,29 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
             result["buildings"] = {
                 player: dict(buildings) for player, buildings in building_counts.items()
             }
+            
+            # Calculate TC idle time per player
+            # TC idle = gaps in villager production > 30s (train time ~25s)
+            VILL_TRAIN_TIME = 25
+            vill_queues = defaultdict(list)
+            for inp in match.inputs:
+                try:
+                    if inp.type == "Queue" and hasattr(inp, "payload") and inp.payload:
+                        if inp.payload.get("unit") == "Villager":
+                            pname = inp.player.name if hasattr(inp.player, "name") else None
+                            if pname:
+                                vill_queues[pname].append(inp.timestamp.total_seconds())
+                except Exception:
+                    continue
+            
+            for pname, times in vill_queues.items():
+                times.sort()
+                total_idle = 0.0
+                for i in range(1, len(times)):
+                    gap = times[i] - times[i - 1]
+                    if gap > 30:
+                        total_idle += gap - VILL_TRAIN_TIME
+                result["tc_idle"][pname] = round(total_idle, 1)
     
     except Exception:
         # If detailed extraction fails entirely, return empty data

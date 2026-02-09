@@ -180,6 +180,12 @@ def match_report(match: dict, player_name: str = None) -> str:
             if farms > 0:
                 eco_parts.append(f"{farms} farms")
             
+            # TC idle
+            p_data = next((p for p in players if p["name"] == player), None)
+            tc_idle = p_data.get("tc_idle_secs") if p_data else None
+            if tc_idle and tc_idle > 0:
+                eco_parts.append(f"TC idle {format_duration(tc_idle)}")
+            
             if eco_parts:
                 lines.append(f"     {player}: {', '.join(eco_parts)}")
     

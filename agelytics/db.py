@@ -52,7 +52,8 @@ def _create_tables(conn: sqlite3.Connection):
             winner INTEGER,
             user_id INTEGER,
             elo INTEGER,
-            eapm INTEGER
+            eapm INTEGER,
+            tc_idle_secs REAL
         );
         
         CREATE TABLE IF NOT EXISTS match_age_ups (
@@ -117,15 +118,17 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
         ))
         match_id = cur.lastrowid
 
+        tc_idle_data = match.get("tc_idle", {})
         for p in match["players"]:
+            tc_idle = tc_idle_data.get(p["name"])
             conn.execute("""
                 INSERT INTO match_players (match_id, name, number, civ_id, civ_name,
-                                           color_id, winner, user_id, elo, eapm)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           color_id, winner, user_id, elo, eapm, tc_idle_secs)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 match_id, p["name"], p["number"], p["civ_id"], p["civ_name"],
                 p["color_id"], 1 if p["winner"] else 0, p["user_id"],
-                p["elo"], p["eapm"],
+                p["elo"], p["eapm"], tc_idle,
             ))
 
         # Insert detailed data if present
