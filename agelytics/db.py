@@ -199,7 +199,8 @@ def get_player_stats(conn: sqlite3.Connection, player_name: str) -> dict:
     total = len(rows)
     wins = sum(1 for r in rows if r["winner"])
     elos = [r["elo"] for r in rows if r["elo"]]
-    eapms = [r["eapm"] for r in rows if r["eapm"]]
+    # Filter out eAPM outliers from ultra-short games (drops inflate eAPM absurdly)
+    eapms = [r["eapm"] for r in rows if r["eapm"] and r["eapm"] < 100]
     
     # Civ stats
     civ_counts = {}
