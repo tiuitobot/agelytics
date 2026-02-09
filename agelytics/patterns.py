@@ -381,6 +381,122 @@ def generate_player_profile(patterns: dict, output_path: str = None) -> dict:
     return profile
 
 
+KB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "knowledge", "aoe2")
+KB_CHANGELOG = os.path.join(KB_DIR, "changelog.md")
+
+
+def auto_promote(patterns: dict) -> list[str]:
+    """Auto-promote consistent patterns to the Knowledge Base.
+    
+    Rules:
+    - Matchup with >=5 games: add/update player_data in matchups.json
+    - New civ encountered >=3 games: ensure it's in civilizations.json (flag only)
+    - Benchmarks: update player-specific comparison notes
+    
+    Returns list of changes made.
+    """
+    changes = []
+    
+    # 1. Matchup auto-promotion
+    matchups_path = os.path.join(KB_DIR, "matchups.json")
+    matchups = {}
+    try:
+        with open(matchups_path) as f:
+            matchups = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        matchups = {"description": "Matchup knowledge", "last_updated": "", "matchups": {}}
+    
+    matchup_data = matchups.get("matchups", {})
+    updated_matchups = False
+    
+    for m in patterns.get("matchups", []):
+        if m["games"] < 5:
+            continue
+        
+        key = f"{m['my_civ']}_vs_{m['opp_civ']}"
+        
+        # Check if player_data changed
+        existing = matchup_data.get(key, {})
+        old_player_data = existing.get("player_data", {})
+        new_player_data = {
+            "games": m["games"],
+            "wins": m["wins"],
+            "winrate": m["winrate"],
+            "avg_duration_min": round(m["avg_duration"] / 60, 1),
+        }
+        
+        if old_player_data != new_player_data:
+            if key not in matchup_data:
+                # New matchup entry — create with player data only
+                matchup_data[key] = {
+                    "theoretical_advantage": "Unknown",
+                    "reason": "No theory data yet — auto-created from match history.",
+                    "suggested_strategy": "",
+                    "player_data": new_player_data,
+                }
+                changes.append(f"matchup_new: {key} ({m['games']}G, {m['winrate']*100:.0f}%WR)")
+            else:
+                # Update existing matchup with player data
+                matchup_data[key]["player_data"] = new_player_data
+                changes.append(f"matchup_update: {key} ({m['games']}G, {m['winrate']*100:.0f}%WR)")
+            updated_matchups = True
+    
+    if updated_matchups:
+        matchups["matchups"] = matchup_data
+        matchups["last_updated"] = datetime.now().strftime("%Y-%m-%d")
+        with open(matchups_path, "w") as f:
+            json.dump(matchups, f, indent=2, ensure_ascii=False)
+    
+    # 2. Civ coverage check — flag civs with >=3 games not in civilizations.json
+    civs_path = os.path.join(KB_DIR, "civilizations.json")
+    try:
+        with open(civs_path) as f:
+            civs_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        civs_data = {"civilizations": {}}
+    
+    known_civs = set(civs_data.get("civilizations", {}).keys())
+    
+    for c in patterns.get("civ_stats", []):
+        if c["games"] >= 3 and c["civ_name"] not in known_civs:
+            changes.append(f"civ_missing: {c['civ_name']} ({c['games']}G) — not in civilizations.json")
+    
+    # Also check opponent civs from matchups
+    for m in patterns.get("matchups", []):
+        if m["games"] >= 3 and m["opp_civ"] not in known_civs:
+            changes.append(f"opp_civ_missing: {m['opp_civ']} ({m['games']}G) — not in civilizations.json")
+    
+    # Deduplicate
+    changes = list(dict.fromkeys(changes))
+    
+    # 3. Log changes to changelog
+    if changes:
+        _append_changelog(changes, patterns["player"])
+    
+    return changes
+
+
+def _append_changelog(changes: list[str], player: str):
+    """Append promotion changes to knowledge/aoe2/changelog.md."""
+    os.makedirs(os.path.dirname(KB_CHANGELOG), exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    entry = f"\n## {timestamp} — Auto-promotion ({player})\n\n"
+    for c in changes:
+        entry += f"- {c}\n"
+    entry += "\n"
+    
+    # Create file if doesn't exist
+    if not os.path.exists(KB_CHANGELOG):
+        header = "# Knowledge Base Changelog\n\nAuto-generated log of pattern-to-KB promotions.\n\n"
+        with open(KB_CHANGELOG, "w") as f:
+            f.write(header)
+    
+    with open(KB_CHANGELOG, "a") as f:
+        f.write(entry)
+
+
 def generate_patterns(player: str = "blzulian", db_path: str = None, 
                        output_path: str = None) -> dict:
     """Generate all patterns and save to JSON."""
@@ -416,6 +532,14 @@ def generate_patterns(player: str = "blzulian", db_path: str = None,
         generate_player_profile(patterns)
     except Exception as e:
         print(f"Player profile generation failed: {e}", file=sys.stderr)
+    
+    # Auto-promote patterns to KB
+    try:
+        promoted = auto_promote(patterns)
+        if promoted:
+            print(f"Auto-promoted {len(promoted)} updates to KB", file=sys.stderr)
+    except Exception as e:
+        print(f"Auto-promotion failed: {e}", file=sys.stderr)
     
     return patterns
 

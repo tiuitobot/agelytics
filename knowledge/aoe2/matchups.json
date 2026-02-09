@@ -5,7 +5,13 @@
     "Franks_vs_Mongols": {
       "theoretical_advantage": "Mongols",
       "reason": "Mangudai hard-counters cavalry. Camels counter Knights. Mongol mobility prevents Frank engagement.",
-      "suggested_strategy": "Avoid mass Knights. Go Archer + Siege Workshop (Scorpions counter Mangudai). Early aggression before Mangudai mass."
+      "suggested_strategy": "Avoid mass Knights. Go Archer + Siege Workshop (Scorpions counter Mangudai). Early aggression before Mangudai mass.",
+      "player_data": {
+        "games": 9,
+        "wins": 6,
+        "winrate": 0.67,
+        "avg_duration_min": 37.3
+      }
     },
     "Franks_vs_Romans": {
       "theoretical_advantage": "Slight Romans",
@@ -25,7 +31,13 @@
     "Franks_vs_Britons": {
       "theoretical_advantage": "Franks",
       "reason": "Knights can close distance on archers. Cheap castles for forward pressure. Throwing Axemen outrange most foot archers.",
-      "suggested_strategy": "Knight rush to deny archer mass. Forward castle to threaten base. Don't let game go to massed Longbowmen."
+      "suggested_strategy": "Knight rush to deny archer mass. Forward castle to threaten base. Don't let game go to massed Longbowmen.",
+      "player_data": {
+        "games": 8,
+        "wins": 4,
+        "winrate": 0.5,
+        "avg_duration_min": 35.0
+      }
     },
     "Franks_vs_Italians": {
       "theoretical_advantage": "Even to slight Italians",
@@ -40,12 +52,90 @@
     "Franks_vs_Japanese": {
       "theoretical_advantage": "Even",
       "reason": "Japanese infantry bonus strong vs cavalry. Samurai are anti-unique-unit. But Franks have eco advantage (free farm upgrades).",
-      "suggested_strategy": "Avoid melee with Samurai. Use cavalry mobility to raid. Scorpions against infantry mass."
+      "suggested_strategy": "Avoid melee with Samurai. Use cavalry mobility to raid. Scorpions against infantry mass.",
+      "player_data": {
+        "games": 5,
+        "wins": 1,
+        "winrate": 0.2,
+        "avg_duration_min": 17.4
+      }
     },
     "Franks_vs_Cumans": {
       "theoretical_advantage": "Even",
       "reason": "Cumans have second TC in Feudal (eco boom), Steppe Lancers, fast mobility. Franks have stronger Castle Age.",
-      "suggested_strategy": "Pressure in Feudal to deny second TC advantage. Knight timing attack in early Castle."
+      "suggested_strategy": "Pressure in Feudal to deny second TC advantage. Knight timing attack in early Castle.",
+      "player_data": {
+        "games": 5,
+        "wins": 1,
+        "winrate": 0.2,
+        "avg_duration_min": 41.9
+      }
+    },
+    "Franks_vs_Khmer": {
+      "theoretical_advantage": "Unknown",
+      "reason": "No theory data yet — auto-created from match history.",
+      "suggested_strategy": "",
+      "player_data": {
+        "games": 6,
+        "wins": 2,
+        "winrate": 0.33,
+        "avg_duration_min": 38.5
+      }
+    },
+    "Franks_vs_Sicilians": {
+      "theoretical_advantage": "Unknown",
+      "reason": "No theory data yet — auto-created from match history.",
+      "suggested_strategy": "",
+      "player_data": {
+        "games": 5,
+        "wins": 2,
+        "winrate": 0.4,
+        "avg_duration_min": 46.2
+      }
+    },
+    "Franks_vs_Turks": {
+      "theoretical_advantage": "Unknown",
+      "reason": "No theory data yet — auto-created from match history.",
+      "suggested_strategy": "",
+      "player_data": {
+        "games": 7,
+        "wins": 3,
+        "winrate": 0.43,
+        "avg_duration_min": 40.4
+      }
+    },
+    "Franks_vs_Persians": {
+      "theoretical_advantage": "Unknown",
+      "reason": "No theory data yet — auto-created from match history.",
+      "suggested_strategy": "",
+      "player_data": {
+        "games": 7,
+        "wins": 3,
+        "winrate": 0.43,
+        "avg_duration_min": 34.6
+      }
+    },
+    "Franks_vs_Franks": {
+      "theoretical_advantage": "Unknown",
+      "reason": "No theory data yet — auto-created from match history.",
+      "suggested_strategy": "",
+      "player_data": {
+        "games": 6,
+        "wins": 3,
+        "winrate": 0.5,
+        "avg_duration_min": 27.4
+      }
+    },
+    "Franks_vs_Vietnamese": {
+      "theoretical_advantage": "Unknown",
+      "reason": "No theory data yet — auto-created from match history.",
+      "suggested_strategy": "",
+      "player_data": {
+        "games": 9,
+        "wins": 5,
+        "winrate": 0.56,
+        "avg_duration_min": 38.1
+      }
     }
   }
 }
