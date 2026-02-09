@@ -5,3 +5,4 @@ data/*.db
 *.pyc
 .env
 data/watcher_state.json
+data/pending_notifications.json
