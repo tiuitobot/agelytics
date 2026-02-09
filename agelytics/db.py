@@ -35,6 +35,7 @@ def _create_tables(conn: sqlite3.Connection):
             speed TEXT,
             pop_limit INTEGER,
             completed INTEGER,
+            rated INTEGER,
             version TEXT,
             ingested_at TEXT DEFAULT (datetime('now'))
         );
@@ -67,13 +68,14 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
         cur = conn.execute("""
             INSERT INTO matches (file_hash, file_path, played_at, duration_secs,
                                  map_name, map_id, game_type, diplomacy, speed,
-                                 pop_limit, completed, version)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 pop_limit, completed, rated, version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             match["file_hash"], match["file_path"], match["played_at"],
             match["duration_secs"], match["map_name"], match["map_id"],
             match["game_type"], match["diplomacy"], match["speed"],
-            match["pop_limit"], 1 if match["completed"] else 0, match["version"],
+            match["pop_limit"], 1 if match["completed"] else 0,
+            1 if match.get("rated") else 0, match["version"],
         ))
         match_id = cur.lastrowid
 

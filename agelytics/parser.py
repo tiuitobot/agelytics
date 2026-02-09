@@ -25,6 +25,13 @@ def parse_replay(filepath: str) -> Optional[dict]:
         return None
 
     try:
+        # Check if ranked
+        rated = False
+        try:
+            rated = bool(s.match.rated)
+        except Exception:
+            pass
+
         players_raw = s.get_players() or []
         duration_ms = s.get_duration() or 0
         settings = s.get_settings() or {}
@@ -93,6 +100,10 @@ def parse_replay(filepath: str) -> Optional[dict]:
         if human_count < 2:
             return None
 
+        # Skip unranked
+        if not rated:
+            return None
+
         return {
             "file_path": filepath,
             "file_hash": file_hash,
@@ -105,6 +116,7 @@ def parse_replay(filepath: str) -> Optional[dict]:
             "speed": speed,
             "pop_limit": pop_limit,
             "completed": completed,
+            "rated": rated,
             "version": version,
             "players": players,
         }
