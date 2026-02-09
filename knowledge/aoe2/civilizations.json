@@ -1,0 +1,149 @@
+{
+  "description": "Civilization data for the most commonly encountered civs. Focus on competitive 1v1 Arabia/Arena.",
+  "last_updated": "2026-02-09",
+  "civilizations": {
+    "Franks": {
+      "type": "cavalry",
+      "bonus": [
+        "Farm upgrades free",
+        "Foragers work 15% faster",
+        "Cavalry +20% HP",
+        "Castles -25% cost"
+      ],
+      "unique_unit": "Throwing Axeman",
+      "unique_techs": ["Bearded Axe", "Chivalry"],
+      "strengths": ["Knight rush", "Fast Castle", "Cheap castles", "Strong Paladin"],
+      "weaknesses": ["No Crossbowman", "Weak archers", "No Camels", "No Bracer"],
+      "common_strategies": ["Scout rush into Knights", "Fast Castle Knights", "Throwing Axeman + Paladin"],
+      "countered_by": ["Camel civs (Berbers, Saracens, Indians)", "Massed Halberdiers + ranged", "Genoese Crossbowmen"]
+    },
+    "Mongols": {
+      "type": "cavalry_archer",
+      "bonus": [
+        "Cavalry archers fire 25% faster",
+        "Light Cavalry/Hussar +30% HP",
+        "Hunters work 40% faster"
+      ],
+      "unique_unit": "Mangudai",
+      "unique_techs": ["Nomads", "Drill"],
+      "strengths": ["Mangudai (anti-siege, anti-archer)", "Fast Feudal (hunt bonus)", "Mobile army", "Drill Siege Ram"],
+      "weaknesses": ["No Halberdier", "No Paladin", "Expensive composition", "Weak late Imperial infantry"],
+      "common_strategies": ["Scout rush (fast Feudal)", "Castle Age Mangudai", "Cavalry Archer + Hussar"],
+      "countered_by": ["Heavy cavalry with Skirmishers", "Camel Archers", "Elite Eagle Warriors"]
+    },
+    "Britons": {
+      "type": "archer",
+      "bonus": [
+        "Town Centers +5 range (Castle), +5 (Imperial)",
+        "Shepherds work 25% faster",
+        "Archery Range units train 20% faster"
+      ],
+      "unique_unit": "Longbowman",
+      "unique_techs": ["Yeomen", "Warwolf"],
+      "strengths": ["Longest range archers", "Fast archer production", "Strong Castle defense", "TC range for defense"],
+      "weaknesses": ["No Crossbowman upgrade path for Knights", "Weak cavalry", "Vulnerable to Siege + Rams"],
+      "common_strategies": ["Archer rush", "Crossbow + Longbow", "Defensive TC play"],
+      "countered_by": ["Siege Rams", "Huskarls (Goths)", "Skirmisher + Onager"]
+    },
+    "Italians": {
+      "type": "archer_naval",
+      "bonus": [
+        "Advancing to next age -15% cost",
+        "Dock techs -50% cost",
+        "Fishing Ships +2 armor",
+        "Gunpowder units -20% cost"
+      ],
+      "unique_unit": "Genoese Crossbowman",
+      "unique_techs": ["Pavise", "Silk Road"],
+      "strengths": ["Cheap age-ups", "Genoese Crossbowmen counter cavalry", "Condottiero (anti-gunpowder)", "Strong water"],
+      "weaknesses": ["No Halberdier", "Mediocre cavalry", "Slow start on land maps"],
+      "common_strategies": ["Fast Castle (cheap age-up)", "Genoese Crossbow + Condottiero", "Water dominance"],
+      "countered_by": ["Siege + Infantry push", "Eagle Warriors", "Onager line"]
+    },
+    "Teutons": {
+      "type": "infantry_cavalry",
+      "bonus": [
+        "Monks +3 range healing",
+        "Towers garrison double units",
+        "Murder Holes free",
+        "Farms +40% food"
+      ],
+      "unique_unit": "Teutonic Knight",
+      "unique_techs": ["Ironclad", "Crenellations"],
+      "strengths": ["Strongest melee infantry", "Farm bonus (strong eco)", "Strong defensive play", "Paladins available"],
+      "weaknesses": ["Teutonic Knights are very slow", "No Hussars", "No Bracer", "Vulnerable to archers + mobility"],
+      "common_strategies": ["Slow push with Teutonic Knights + Siege", "Knight rush (good eco)", "Tower rush + Castle drop"],
+      "countered_by": ["Hit-and-run archers", "Mangudai", "Cavalry Archers"]
+    },
+    "Lithuanians": {
+      "type": "cavalry",
+      "bonus": [
+        "Start with +150 food",
+        "Each relic gives cavalry +1 attack (max +4)",
+        "Skirmishers and Spearmen move 10% faster"
+      ],
+      "unique_unit": "Leitis",
+      "unique_techs": ["Hill Forts", "Tower Shields"],
+      "strengths": ["Fast Feudal/Castle (food bonus)", "Relics boost cavalry massively", "Leitis ignores armor", "Strong Paladin with relics"],
+      "weaknesses": ["Dependent on relics", "No Siege Ram", "Mediocre archers"],
+      "common_strategies": ["Fast Castle for relic rush", "Knight + Leitis", "Drush into Fast Castle"],
+      "countered_by": ["Deny relics", "Halberdier + ranged", "Camel civs"]
+    },
+    "Vietnamese": {
+      "type": "archer",
+      "bonus": [
+        "Reveal enemy positions at game start",
+        "Economic upgrades cost no wood",
+        "Archery Range units +20% HP"
+      ],
+      "unique_unit": "Rattan Archer",
+      "unique_techs": ["Chatras", "Paper Money"],
+      "strengths": ["See enemy TC (scouting advantage)", "Tanky archers", "Rattan Archers resist archer fire", "Imperial Skirmisher"],
+      "weaknesses": ["Slow early economy", "Weak cavalry", "No Hussars"],
+      "common_strategies": ["Archer rush (tanky archers)", "Rattan Archer + Halberdier", "Imperial Skirmisher spam"],
+      "countered_by": ["Cavalry rush before archers mass", "Siege + infantry", "Mangonels"]
+    },
+    "Dravidians": {
+      "type": "infantry_naval",
+      "bonus": [
+        "Fishermen carry +15",
+        "Barracks units +5 melee armor (starting Feudal)",
+        "Skirmishers/Elephant Archers fire 25% faster"
+      ],
+      "unique_unit": "Urumi Swordsman",
+      "unique_techs": ["Medical Corps", "Wootz Steel"],
+      "strengths": ["Wootz Steel ignores armor", "Strong infantry in Feudal", "Urumi cleave damage", "Good water"],
+      "weaknesses": ["No cavalry at all", "No Scout Cavalry line", "Vulnerable to ranged + mobility", "Worst land cavalry in game"],
+      "common_strategies": ["Infantry rush", "Urumi + Siege", "Water maps"],
+      "countered_by": ["Any cavalry civ", "Hit-and-run", "Ranged units + mobility"]
+    },
+    "Romans": {
+      "type": "infantry",
+      "bonus": [
+        "Villagers construct buildings 50% faster in Dark/Feudal",
+        "Galley line +1 attack per Age",
+        "Infantry +5% movement speed per Age"
+      ],
+      "unique_unit": "Centurion",
+      "unique_techs": ["Ballistas", "Comitatenses"],
+      "strengths": ["Fast construction (tower rush, quick walls)", "Strong infantry with speed", "Centurion buffs nearby infantry"],
+      "weaknesses": ["No Paladin", "Mediocre archers", "Expensive unique unit"],
+      "common_strategies": ["Tower rush (fast construction)", "Infantry push", "Centurion death ball"],
+      "countered_by": ["Archers + mobility", "Heavy cavalry flank", "Scorpions"]
+    },
+    "Burgundians": {
+      "type": "cavalry",
+      "bonus": [
+        "Economic upgrades available one Age earlier",
+        "Cavalier upgrade available in Castle Age",
+        "Relics generate food in addition to gold"
+      ],
+      "unique_unit": "Coustillier",
+      "unique_techs": ["Burgundian Vineyards", "Flemish Revolution"],
+      "strengths": ["Early eco upgrades (power spike)", "Cavalier in Castle Age", "Coustillier charge damage", "Flemish Revolution emergency"],
+      "weaknesses": ["No Crossbowman", "Mediocre archers", "Flemish Revolution is all-in"],
+      "common_strategies": ["Fast Castle Cavalier (Castle Age power spike)", "Coustillier raids", "Eco advantage into boom"],
+      "countered_by": ["Halberdier + Crossbow", "Camel civs", "Defensive play until Imperial"]
+    }
+  }
+}

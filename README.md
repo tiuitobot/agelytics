@@ -1,67 +1,115 @@
 # Agelytics 📊⚔️
 
-**Age of Empires 2 DE Replay Analyzer**
+**AI-powered Age of Empires 2 DE replay analyzer, coaching system, and progress tracker.**
 
-Local-first, 100% Python AoE2 DE replay parser and statistics tracker. No external APIs required.
+Local-first, privacy-respecting. Parses replays directly from disk — no external APIs, no uploads, no accounts.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
 ## Features
 
-- 🎮 Parse `.aoe2record` replay files using the `mgz` library
-- 💾 Store match data in SQLite with automatic deduplication (file hash)
-- 📈 Generate detailed post-match reports with ELO, civs, and results
-- 🏆 Track player evolution, win rates, and favorite civilizations
-- 🗺️ Support for 50+ map types and 45+ civilization mappings
-- ⚡ Fast CLI with zero external API dependencies
+### Core (100% Python, zero AI)
+- 🎮 Parse `.aoe2record` replay files using `mgz`
+- 💾 SQLite storage with automatic deduplication
+- 📊 Detailed post-match reports: age-ups, army composition, economy, key techs, TC idle time
+- 📈 Player statistics: ELO tracking, winrates, civ distribution
+- 🔍 Pattern detection: matchup stats, age-up trends, eco health, ELO trajectory
+- 🗺️ 50+ map types, 45+ civilizations
 
-## Installation
+### AI Analysis (requires LLM)
+- 🧠 **Análise IA**: Quick match overview with coaching points and rating (1-10)
+- 🔬 **Deep Coach**: Forensic-level analysis — action density, timeline, micro/macro, causal chains, cross-match patterns
+- 📋 **Daily Summary**: AI-generated day overview with ELO progression and recurring patterns
+- 🏫 **Knowledge Base**: Domain-specific coaching rules evaluated against your data
+
+### Automation
+- 🔄 **Watcher**: Linux cron detects new replays every 2 minutes
+- 📱 **Telegram Integration**: Instant notifications with inline buttons for reports/analysis
+- 🔊 **Voice Summaries**: TTS audio post-match summaries (optional)
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│                   Agelytics                       │
+├──────────────────────────────────────────────────┤
+│  Layer 1: Match Data (SQLite)                    │
+│  parser.py → db.py → aoe2_matches.db            │
+│  Deterministic. Every replay parsed identically. │
+├──────────────────────────────────────────────────┤
+│  Layer 2: Pattern Detection                      │
+│  patterns.py → data/patterns.json                │
+│  Aggregate stats, trends, correlations.          │
+│  100% Python/SQL. Updated after each match.      │
+├──────────────────────────────────────────────────┤
+│  Layer 3: Knowledge Base                         │
+│  knowledge/aoe2/*.json|md                        │
+│  Civ data, benchmarks, matchups, coaching rules. │
+│  Static (curated) + auto-generated (profiles).   │
+├──────────────────────────────────────────────────┤
+│  Layer 4: AI Analysis (optional)                 │
+│  External LLM consumes Layers 1-3 as context.    │
+│  Match data + patterns + KB → coaching insights. │
+└──────────────────────────────────────────────────┘
+```
+
+## Quick Start
 
 ```bash
+# Clone and install
 git clone https://github.com/tiuitobot/agelytics.git
 cd agelytics
+python3 -m venv venv && source venv/bin/activate
 pip install -e .
+
+# Ingest replays
+agelytics ingest "/path/to/Age of Empires 2 DE/<steam_id>/savegame/"
+
+# View last match
+agelytics report --last -p YourName
+
+# View stats
+agelytics stats YourName
+
+# Generate patterns
+agelytics patterns -p YourName
 ```
 
-### Requirements
+## Commands
 
-- Python 3.8+
-- `mgz` library (installed automatically via pip)
-
-## Usage
-
-### Ingest Replays
-
-Import replay files into the database:
+### `ingest` — Import replay files
 
 ```bash
-# Import all replays from AoE2 DE savegame folder
-agelytics ingest "/path/to/Age of Empires 2 DE/76561198028659538/savegame/"
-
-# Import a single replay
-agelytics ingest match.aoe2record
-
-# Verbose output
-agelytics ingest /path/to/savegame/ -v
+agelytics ingest /path/to/savegame/          # All replays in directory
+agelytics ingest match.aoe2record             # Single file
+agelytics ingest /path/to/savegame/ -v        # Verbose output
 ```
 
-### View Match Reports
-
-Show detailed information about a match:
+### `report` — Match reports
 
 ```bash
-# Show last match
-agelytics report --last
-
-# Show specific match by ID
-agelytics report --id 42
-
-# Show from a specific player's perspective
-agelytics report --last -p YourPlayerName
-
-# List all matches (compact table)
-agelytics report --all -p YourPlayerName
+agelytics report --last -p blzulian           # Last match
+agelytics report --id 145 -p blzulian         # Specific match
+agelytics report --all -p blzulian            # List all matches
+agelytics report --all -p blzulian --limit 20 # Limit results
 ```
 
-**Example output:**
+### `stats` — Player statistics
+
+```bash
+agelytics stats blzulian
+```
+
+### `patterns` — Pattern analysis
+
+```bash
+agelytics patterns -p blzulian
+```
+
+Output includes: ELO trend, age-up trends, eco health, top civs, map performance, best/worst matchups.
+
+## Report Example
 
 ```
 ════════════════════════════════════════
@@ -69,75 +117,109 @@ agelytics report --all -p YourPlayerName
 ════════════════════════════════════════
 
   🏆 VITÓRIA
-  blzulian (Franks) vs opponent (Italians)
+  blzulian (Franks) vs Ilyada555 (Italians)
 
-  📅 2026-02-09 14:35
-  🗺️  Arabia
-  ⏱️  45:58
-  🎮 1v1 | RM | Fast
+  📅 2026-02-09 13:02 | 🗺️ Arabia | ⏱️ 45:58
 
-  ────────────────────────────────────
-  Players:
-  👑 blzulian — Franks (ELO 598, eAPM 45) ◄
-     opponent — Italians (ELO 605, eAPM 52)
-  📊 ELO gap: +7 (opponent higher)
-  ────────────────────────────────────
+  ⏫ Age-Up Times:
+     Age          blzulian     Ilyada555
+     Feudal       10:02        10:26
+     Castle       23:00        20:37
+     Imperial     41:21        —
+
+  ⚔️ Army: Knight ×55, Spearman ×14, Militia ×12
+
+  🏠 Economy:
+     blzulian: 114 vills, 34 farms, TC idle 28:33
+     Ilyada555: 103 vills, 25 farms, TC idle 26:32
 ```
 
-### Player Statistics
+## Knowledge Base
 
-View aggregate stats for a player:
+The `knowledge/aoe2/` directory contains domain-specific data:
+
+| File | Description |
+|------|-------------|
+| `civilizations.json` | Civ bonuses, strengths, weaknesses, counters |
+| `benchmarks.json` | Age-up targets by ELO bracket |
+| `matchups.json` | Matchup theory + player winrate data |
+| `strategies.md` | Build orders and principles |
+| `coaching-rules.md` | IF/THEN coaching rule engine |
+| `player-profile.json` | Auto-generated player analysis |
+
+## Automated Watcher
+
+For continuous monitoring, set up a Linux cron job:
 
 ```bash
-agelytics stats YourPlayerName
+# Run every 2 minutes
+*/2 * * * * /path/to/agelytics/scripts/watch_cron.sh
 ```
 
-**Example output:**
-
-```
-════════════════════════════════════════
-  AGELYTICS — Player: blzulian
-════════════════════════════════════════
-
-  Matches: 141 (78W / 63L)
-  Win rate: 55.3%
-  ELO: 598 (min 420, max 652)
-  Avg eAPM: 43
-
-  Top civs:
-    Franks: 35 games (60% WR)
-    Britons: 28 games (54% WR)
-    Mayans: 18 games (50% WR)
-```
-
-## Running as Module
-
-You can also run Agelytics as a Python module:
-
-```bash
-python -m agelytics ingest /path/to/savegame/
-python -m agelytics report --last
-python -m agelytics stats PlayerName
-```
+The watcher:
+1. Scans the replay directory for new files
+2. Parses and ingests new matches
+3. Regenerates pattern analysis
+4. Sends Telegram notification with inline buttons (optional)
 
 ## Data Storage
 
-- Database: `data/aoe2_matches.db` (SQLite)
-- Automatic deduplication by file hash
-- Indexed for fast queries by player name and date
+```
+data/
+├── aoe2_matches.db        # SQLite database (all match data)
+├── patterns.json           # Generated pattern analysis
+└── watcher_state.json      # Watcher state (seen files)
+```
 
-## Dependencies
+### Database Schema
 
-- **mgz**: Python library for parsing AoE2 DE `.mgz`/`.aoe2record` files
-- **sqlite3**: Built-in Python SQLite support (no external database needed)
+- `matches` — Game metadata (date, map, duration, speed, pop)
+- `match_players` — Per-player data (civ, ELO, eAPM, winner, TC idle)
+- `match_age_ups` — Age advancement timestamps
+- `match_units` — Unit production counts
+- `match_researches` — Technology research timestamps
+- `match_buildings` — Building construction counts
+
+## Requirements
+
+- Python 3.8+
+- `mgz` — AoE2 replay parser
+- SQLite3 (built-in)
+- Optional: Telegram Bot Token (for notifications)
+- Optional: LLM API access (for AI analysis)
+
+## Project Structure
+
+```
+agelytics/
+├── agelytics/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── cli.py              # CLI entry point
+│   ├── parser.py           # Replay file parser
+│   ├── db.py               # SQLite storage layer
+│   ├── report.py           # Report formatting
+│   ├── patterns.py         # Pattern detection
+│   ├── data.py             # Civ/map mappings
+│   └── watcher.py          # New replay watcher
+├── knowledge/
+│   └── aoe2/               # Domain knowledge base
+├── scripts/
+│   └── watch_cron.sh       # Cron wrapper
+├── plans/                   # Design documents
+├── data/                    # Database + generated files
+└── README.md
+```
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions welcome! Feel free to open issues or pull requests.
+Contributions welcome! Open issues or pull requests.
+
+**Replay parsing** is deterministic and reproducible. AI analysis is optional and runs externally. This separation ensures the core tool is reliable and shareable.
 
 ---
 

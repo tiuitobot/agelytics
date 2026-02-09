@@ -1,0 +1,60 @@
+{
+  "description": "Matchup knowledge combining community theory + player-specific data from patterns.json. Player data auto-updated after each match.",
+  "last_updated": "2026-02-09",
+  "matchups": {
+    "Franks_vs_Mongols": {
+      "theoretical_advantage": "Mongols",
+      "reason": "Mangudai hard-counters cavalry. Camels counter Knights. Mongol mobility prevents Frank engagement.",
+      "suggested_strategy": "Avoid mass Knights. Go Archer + Siege Workshop (Scorpions counter Mangudai). Early aggression before Mangudai mass.",
+      "player_data_key": "patterns.matchups[Franks/Mongols]"
+    },
+    "Franks_vs_Romans": {
+      "theoretical_advantage": "Slight Romans",
+      "reason": "Fast construction enables tower rush. Infantry speed makes it hard for Knights to flee. Centurion + Halberdier is cost-effective.",
+      "suggested_strategy": "Scout early to detect tower rush. Quick walls. Don't let them establish forward. Knight raids on eco.",
+      "player_data_key": "patterns.matchups[Franks/Romans]"
+    },
+    "Franks_vs_Indians": {
+      "theoretical_advantage": "Indians",
+      "reason": "Imperial Camel hard-counters Paladin. Cheap villagers mean eco advantage. Elephant Archers tanky.",
+      "suggested_strategy": "Early Knight aggression before Camels mass. Throwing Axemen counter Camels. Don't go late game.",
+      "player_data_key": "patterns.matchups[Franks/Indians]"
+    },
+    "Franks_vs_Burgundians": {
+      "theoretical_advantage": "Even (mirror-like)",
+      "reason": "Both are cavalry civs. Burgundians get Cavalier in Castle Age (power spike). Franks have HP bonus.",
+      "suggested_strategy": "Don't engage Cavalier 1v1 in Castle Age (they upgrade earlier). Boom behind walls, fight in Imperial with Paladin HP advantage.",
+      "player_data_key": "patterns.matchups[Franks/Burgundians]"
+    },
+    "Franks_vs_Britons": {
+      "theoretical_advantage": "Franks",
+      "reason": "Knights can close distance on archers. Cheap castles for forward pressure. Throwing Axemen outrange most foot archers.",
+      "suggested_strategy": "Knight rush to deny archer mass. Forward castle to threaten base. Don't let game go to massed Longbowmen.",
+      "player_data_key": "patterns.matchups[Franks/Britons]"
+    },
+    "Franks_vs_Italians": {
+      "theoretical_advantage": "Even to slight Italians",
+      "reason": "Genoese Crossbowmen hard-counter cavalry. Condottiero counters gunpowder. Italians get cheaper age-ups.",
+      "suggested_strategy": "Early aggression before Genoese mass. Throwing Axemen + Siege against Genoese. Don't mass Paladins into Genoese.",
+      "player_data_key": "patterns.matchups[Franks/Italians]"
+    },
+    "Franks_vs_Byzantines": {
+      "theoretical_advantage": "Franks",
+      "reason": "Franks have stronger military overall. Byzantines are defensive/flexible but lack power units. Cataphracts are expensive.",
+      "suggested_strategy": "Standard Knight rush. Pressure early, don't let them boom to Cataphract mass.",
+      "player_data_key": "patterns.matchups[Franks/Byzantines]"
+    },
+    "Franks_vs_Japanese": {
+      "theoretical_advantage": "Even",
+      "reason": "Japanese infantry bonus strong vs cavalry. Samurai are anti-unique-unit. But Franks have eco advantage (free farm upgrades).",
+      "suggested_strategy": "Avoid melee with Samurai. Use cavalry mobility to raid. Scorpions against infantry mass.",
+      "player_data_key": "patterns.matchups[Franks/Japanese]"
+    },
+    "Franks_vs_Cumans": {
+      "theoretical_advantage": "Even",
+      "reason": "Cumans have second TC in Feudal (eco boom), Steppe Lancers, fast mobility. Franks have stronger Castle Age.",
+      "suggested_strategy": "Pressure in Feudal to deny second TC advantage. Knight timing attack in early Castle.",
+      "player_data_key": "patterns.matchups[Franks/Cumans]"
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "description": "Age-up and economy benchmarks by ELO bracket. Source: community data + Spirit of the Law + Hera guides.",
+  "last_updated": "2026-02-09",
+  "elo_brackets": {
+    "400-600": {
+      "label": "Beginner",
+      "feudal_secs": 660,
+      "castle_secs": 1320,
+      "imperial_secs": 2400,
+      "first_military_secs": 900,
+      "eapm": "10-18",
+      "villager_count_30min": 60,
+      "notes": "Focus on constant villager production and not getting supply blocked"
+    },
+    "600-800": {
+      "label": "Intermediate",
+      "feudal_secs": 600,
+      "castle_secs": 1200,
+      "imperial_secs": 2100,
+      "first_military_secs": 720,
+      "eapm": "18-30",
+      "villager_count_30min": 75,
+      "notes": "Should have a build order. Feudal pressure or Fast Castle depending on map"
+    },
+    "800-1000": {
+      "label": "Advanced",
+      "feudal_secs": 570,
+      "castle_secs": 1080,
+      "imperial_secs": 1800,
+      "first_military_secs": 600,
+      "eapm": "30-50",
+      "villager_count_30min": 90,
+      "notes": "Tight build orders, scouting, adapting to opponent. Walling + pressure"
+    },
+    "1000-1200": {
+      "label": "Expert",
+      "feudal_secs": 540,
+      "castle_secs": 960,
+      "imperial_secs": 1620,
+      "first_military_secs": 540,
+      "eapm": "50-80",
+      "villager_count_30min": 100,
+      "notes": "Multi-tasking, micro + macro simultaneously, adaptive strategies"
+    },
+    "1200+": {
+      "label": "Elite",
+      "feudal_secs": 510,
+      "castle_secs": 900,
+      "imperial_secs": 1500,
+      "first_military_secs": 480,
+      "eapm": "80+",
+      "villager_count_30min": 110,
+      "notes": "Near-perfect execution, meta strategies, minimal idle time"
+    }
+  },
+  "general_rules": {
+    "tc_idle_target_pct": 10,
+    "farm_reseed_gap_max_secs": 60,
+    "villager_production_continuous": true,
+    "loom_timing": "Before clicking Feudal Age (usually around 8:00-9:00 game time)",
+    "second_tc_timing": "Immediately upon reaching Castle Age"
+  }
+}

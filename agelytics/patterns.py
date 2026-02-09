@@ -8,6 +8,7 @@ import json
 import os
 import sqlite3
 from datetime import datetime
+import sys
 from typing import Optional
 
 from .db import get_db, DEFAULT_DB
@@ -309,6 +310,77 @@ def map_performance(conn: sqlite3.Connection, player: str, n_last: int = 0) -> l
     return [dict(r) for r in rows]
 
 
+PROFILE_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "knowledge", "aoe2", "player-profile.json")
+
+
+def generate_player_profile(patterns: dict, output_path: str = None) -> dict:
+    """Generate player profile from patterns. Auto-saved to knowledge/aoe2/."""
+    p = patterns
+    output_path = output_path or PROFILE_FILE
+    
+    elo_data = p.get("elo_trend", {})
+    feudal = p.get("age_up_trends", {}).get("feudal", {})
+    castle = p.get("age_up_trends", {}).get("castle", {})
+    eco = p.get("eco_health", {})
+    civs = p.get("civ_stats", [])
+    
+    cavalry_civs = {"Franks", "Teutons", "Lithuanians", "Burgundians", "Persians", "Huns", "Berbers"}
+    main_civ = civs[0]["civ_name"] if civs else None
+    
+    profile = {
+        "player": p["player"],
+        "generated_at": p["generated_at"],
+        "match_count": p["match_count"],
+        "elo": {
+            "current": elo_data.get("current"),
+            "min": elo_data.get("min"),
+            "max": elo_data.get("max"),
+            "trend": elo_data.get("trend"),
+            "slope": elo_data.get("slope_per_game"),
+        } if elo_data.get("available") else {},
+        "main_civ": main_civ,
+        "civ_diversity": len(civs),
+        "playstyle": "cavalry-focused" if main_civ in cavalry_civs else "mixed",
+        "strengths": [],
+        "weaknesses": [],
+        "age_up_trends": p.get("age_up_trends", {}),
+        "eco_health": eco,
+    }
+    
+    # Derive strengths
+    if feudal.get("trend") == "improving":
+        profile["strengths"].append("feudal_time_improving")
+    if elo_data.get("trend") == "rising":
+        profile["strengths"].append("elo_rising")
+    if eco.get("avg_tc_idle_pct", 1) < 0.3:
+        profile["strengths"].append("low_tc_idle")
+    
+    # Derive weaknesses
+    if castle.get("trend") == "worsening":
+        profile["weaknesses"].append("castle_time_worsening")
+    if castle.get("avg_recent_secs", 0) > 1300:
+        profile["weaknesses"].append("castle_time_slow")
+    if eco.get("avg_tc_idle_pct", 0) > 0.4:
+        profile["weaknesses"].append("high_tc_idle")
+    if feudal.get("trend") == "worsening":
+        profile["weaknesses"].append("feudal_time_worsening")
+    if len(civs) < 5:
+        profile["weaknesses"].append("low_civ_diversity")
+    
+    # Best/worst map
+    maps = p.get("map_performance", [])
+    if maps:
+        profile["best_map"] = max(maps, key=lambda x: x["winrate"])["map_name"]
+        profile["worst_map"] = min(maps, key=lambda x: x["winrate"])["map_name"]
+    
+    # Save
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w") as f:
+        json.dump(profile, f, indent=2, ensure_ascii=False)
+    
+    return profile
+
+
 def generate_patterns(player: str = "blzulian", db_path: str = None, 
                        output_path: str = None) -> dict:
     """Generate all patterns and save to JSON."""
@@ -334,10 +406,16 @@ def generate_patterns(player: str = "blzulian", db_path: str = None,
     
     conn.close()
     
-    # Save to file
+    # Save patterns to file
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(patterns, f, indent=2, ensure_ascii=False)
+    
+    # Generate player profile from patterns
+    try:
+        generate_player_profile(patterns)
+    except Exception as e:
+        print(f"Player profile generation failed: {e}", file=sys.stderr)
     
     return patterns
 
