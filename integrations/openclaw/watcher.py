@@ -13,10 +13,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .parser import parse_replay
-from .db import get_db, insert_match, get_match_by_id
-from .report import format_duration
-from .patterns import generate_patterns
+from agelytics.parser import parse_replay
+from agelytics.db import get_db, insert_match, get_match_by_id
+from agelytics.report import format_duration
+from agelytics.patterns import generate_patterns
 
 # Config
 REPLAY_DIR = "/mnt/c/Users/administrador/Games/Age of Empires 2 DE/76561198028659538/savegame/"

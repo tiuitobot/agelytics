@@ -11,4 +11,4 @@ set -a
 source /home/linuxadmin/repos/agelytics/.env 2>/dev/null
 set +a
 
-python -m agelytics.watcher 2>/dev/null
+python -m integrations.openclaw.watcher 2>/dev/null

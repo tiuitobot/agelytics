@@ -1,9 +1,19 @@
+# Python
 venv/
 __pycache__/
 *.egg-info/
-data/*.db
 *.pyc
-.env
+
+# Personal data (game-specific, not shared)
+data/*.db
 data/watcher_state.json
 data/pending_notifications.json
 data/patterns.json
+.env
+
+# Auto-generated personal files
+knowledge/aoe2/player-profile.json
+
+# OS
+.DS_Store
+integrations/data/

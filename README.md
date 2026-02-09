@@ -192,24 +192,44 @@ data/
 
 ```
 agelytics/
-├── agelytics/
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── cli.py              # CLI entry point
-│   ├── parser.py           # Replay file parser
-│   ├── db.py               # SQLite storage layer
-│   ├── report.py           # Report formatting
-│   ├── patterns.py         # Pattern detection
-│   ├── data.py             # Civ/map mappings
-│   └── watcher.py          # New replay watcher
-├── knowledge/
-│   └── aoe2/               # Domain knowledge base
-├── scripts/
-│   └── watch_cron.sh       # Cron wrapper
+├── agelytics/               # Core framework (deterministic, no AI)
+│   ├── cli.py               #   CLI entry point
+│   ├── parser.py            #   Replay file parser (mgz)
+│   ├── db.py                #   SQLite storage layer
+│   ├── report.py            #   Report formatting
+│   ├── patterns.py          #   Pattern detection (aggregates)
+│   └── data.py              #   Civ/map ID mappings
+├── knowledge/               # Domain knowledge (generic, tracked)
+│   └── aoe2/
+│       ├── civilizations.json
+│       ├── benchmarks.json
+│       ├── matchups.json
+│       ├── strategies.md
+│       ├── coaching-rules.md
+│       └── player-profile.json  ← auto-generated, gitignored
+├── integrations/            # External integrations (optional)
+│   └── openclaw/
+│       ├── watcher.py       #   Replay watcher + Telegram notifications
+│       └── watch_cron.sh    #   Linux cron wrapper
+├── docs/                    # Documentation
+│   ├── ARCHITECTURE.md
+│   └── CHANGELOG.md
 ├── plans/                   # Design documents
-├── data/                    # Database + generated files
+├── data/                    # Personal data (gitignored)
+│   ├── aoe2_matches.db      ← your match database
+│   └── patterns.json         ← your pattern analysis
 └── README.md
 ```
+
+### Separation of Concerns
+
+The repo contains **two distinct layers**:
+
+1. **Core Framework** (`agelytics/` + `knowledge/`) — 100% deterministic Python. No AI, no external services. Install with `pip` and use the CLI. **Shareable with anyone.**
+
+2. **Integrations** (`integrations/`) — Optional extensions for specific platforms. The OpenClaw integration adds Telegram notifications, AI analysis (Deep Coach), and voice summaries. **Requires OpenClaw + LLM.**
+
+Personal data (`data/`, `player-profile.json`, `.env`) is gitignored. The repo ships clean.
 
 ## License
 
