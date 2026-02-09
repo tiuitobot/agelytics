@@ -201,8 +201,9 @@ def check_new_replays(db_path=None):
         if text:
             buttons = [
                 [
-                    {"text": "📊 Report completo", "callback_data": f"agelytics_report_{match_id}"},
+                    {"text": "📊 Report", "callback_data": f"agelytics_report_{match_id}"},
                     {"text": "🧠 Análise IA", "callback_data": f"agelytics_analyze_{match_id}"},
+                    {"text": "🔬 Deep Coach", "callback_data": f"agelytics_deep_{match_id}"},
                 ],
                 [
                     {"text": "📋 Menu do dia", "callback_data": f"agelytics_day_{today}"},
