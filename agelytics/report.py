@@ -17,6 +17,32 @@ def format_duration(secs: float) -> str:
     return f"{minutes}:{seconds:02d}"
 
 
+# Units to exclude from army composition (eco/starting units)
+ECO_UNITS = {"Villager", "Scout Cavalry", "Trade Cart", "Trade Cog", "Fishing Ship", "Transport Ship"}
+
+# Key military/age techs to show (filter out basic eco techs)
+KEY_TECHS = {
+    # Age advances
+    "Feudal Age", "Castle Age", "Imperial Age",
+    # Military upgrades
+    "Cavalier", "Paladin", "Crossbowman", "Arbalester", "Heavy Scorpion", "Trebuchet",
+    "Pikeman", "Halberdier", "Champion", "Two-Handed Swordsman", "Long Swordsman",
+    "Heavy Cavalry Archer", "Hussar", "Heavy Camel Rider", "Imperial Camel Rider",
+    "Elite Skirmisher", "Heavy Demolition Ship", "Fast Fire Ship", "Heavy Scorpion",
+    "Capped Ram", "Siege Ram", "Onager", "Siege Onager",
+    # Important techs
+    "Ballistics", "Chemistry", "Siege Engineers", "Bloodlines", "Husbandry",
+    "Thumb Ring", "Parthian Tactics", "Supplies", "Squires", "Arson",
+    # Elite unique units (common ones)
+    "Elite Cataphract", "Elite Chu Ko Nu", "Elite Longbowman", "Elite Mangudai",
+    "Elite War Elephant", "Elite Mameluke", "Elite Janissary", "Elite Teutonic Knight",
+    "Elite Samurai", "Elite Throwing Axeman", "Elite Huskarl", "Elite Conquistador",
+    "Elite Tarkan", "Elite War Wagon", "Elite Turtle Ship", "Elite Jaguar Warrior",
+    "Elite Eagle Warrior", "Elite Plumed Archer", "Elite Kamayuk", "Elite Elephant Archer",
+    "Elite Genoese Crossbowman", "Elite Magyar Huszar", "Elite Boyar",
+}
+
+
 def match_report(match: dict, player_name: str = None) -> str:
     """Generate a text report for a single match.
     
@@ -61,10 +87,13 @@ def match_report(match: dict, player_name: str = None) -> str:
     lines.append("")
     
     # Match details
-    lines.append(f"  📅 {match.get('played_at', '?')[:16].replace('T', ' ')}")
-    lines.append(f"  🗺️  {match.get('map_name', '?')}")
-    lines.append(f"  ⏱️  {format_duration(match.get('duration_secs', 0))}")
-    lines.append(f"  🎮 {match.get('diplomacy', '?')} | {match.get('game_type', '?')} | {match.get('speed', '?')}")
+    played_at = match.get('played_at', '?')[:16].replace('T', ' ')
+    map_name = match.get('map_name', '?')
+    duration = format_duration(match.get('duration_secs', 0))
+    game_info = f"{match.get('game_type', '?')} | {match.get('speed', '?')} | Pop {match.get('pop_limit', 200)}"
+    
+    lines.append(f"  📅 {played_at} | 🗺️ {map_name} | ⏱️ {duration}")
+    lines.append(f"  🎮 {game_info}")
     lines.append("")
     
     # Player details
@@ -82,6 +111,111 @@ def match_report(match: dict, player_name: str = None) -> str:
         diff = opponents[0]["elo"] - me["elo"]
         sign = "+" if diff > 0 else ""
         lines.append(f"  📊 ELO gap: {sign}{diff} (opponent {'higher' if diff > 0 else 'lower'})")
+    
+    lines.append(f"  {'─' * 36}")
+    
+    # Age-up times
+    age_ups = match.get("age_ups", [])
+    if age_ups:
+        lines.append("")
+        lines.append("  ⏫ Age-Up Times:")
+        
+        # Group by player
+        player_ages = {}
+        for age_up in age_ups:
+            player = age_up["player"]
+            if player not in player_ages:
+                player_ages[player] = {}
+            player_ages[player][age_up["age"]] = age_up["timestamp_secs"]
+        
+        # Format as table
+        ages = ["Feudal Age", "Castle Age", "Imperial Age"]
+        age_labels = ["Feudal", "Castle", "Imperial"]
+        
+        # Header
+        if len(players) == 2:
+            p1_name = players[0]["name"]
+            p2_name = players[1]["name"]
+            lines.append(f"     Age          {p1_name[:12].ljust(12)} {p2_name[:12].ljust(12)}")
+        
+            for age, label in zip(ages, age_labels):
+                p1_time = player_ages.get(p1_name, {}).get(age)
+                p2_time = player_ages.get(p2_name, {}).get(age)
+                p1_str = format_duration(p1_time) if p1_time else "—"
+                p2_str = format_duration(p2_time) if p2_time else "—"
+                lines.append(f"     {label.ljust(12)} {p1_str.ljust(12)} {p2_str.ljust(12)}")
+    
+    # Army composition
+    unit_production = match.get("unit_production", {})
+    if unit_production:
+        lines.append("")
+        lines.append("  ⚔️ Army Composition:")
+        
+        for player in [p["name"] for p in players]:
+            units = unit_production.get(player, {})
+            # Filter out eco units and sort by count
+            army_units = [(unit, count) for unit, count in units.items() 
+                          if unit not in ECO_UNITS and count > 0]
+            army_units.sort(key=lambda x: x[1], reverse=True)
+            
+            if army_units:
+                unit_str = ", ".join(f"{unit} ×{count}" for unit, count in army_units[:8])
+                lines.append(f"     {player}: {unit_str}")
+    
+    # Economy
+    if unit_production:
+        lines.append("")
+        lines.append("  🏠 Economy:")
+        
+        for player in [p["name"] for p in players]:
+            units = unit_production.get(player, {})
+            buildings = match.get("buildings", {}).get(player, {})
+            
+            villagers = units.get("Villager", 0)
+            farms = buildings.get("Farm", 0)
+            
+            eco_parts = []
+            if villagers > 0:
+                eco_parts.append(f"{villagers} villagers produced")
+            if farms > 0:
+                eco_parts.append(f"{farms} farms")
+            
+            if eco_parts:
+                lines.append(f"     {player}: {', '.join(eco_parts)}")
+    
+    # Key techs
+    researches = match.get("researches", [])
+    if researches:
+        lines.append("")
+        lines.append("  🔬 Key Techs:")
+        
+        # Group by player
+        player_techs = {}
+        for research in researches:
+            player = research["player"]
+            tech = research["tech"]
+            timestamp = research["timestamp_secs"]
+            
+            if tech in KEY_TECHS:
+                if player not in player_techs:
+                    player_techs[player] = []
+                player_techs[player].append((tech, timestamp))
+        
+        for player in [p["name"] for p in players]:
+            techs = player_techs.get(player, [])
+            if techs:
+                # Sort by timestamp and show top 5
+                techs.sort(key=lambda x: x[1])
+                tech_str = ", ".join(f"{tech} ({format_duration(ts)})" for tech, ts in techs[:5])
+                lines.append(f"     {player}: {tech_str}")
+    
+    # End game
+    lines.append("")
+    resign_player = match.get("resign_player")
+    if resign_player:
+        lines.append(f"  🏁 End: {resign_player} resigned at {duration}")
+    else:
+        lines.append(f"  🏁 End: Match completed at {duration}")
     
     lines.append(f"  {'─' * 36}")
     lines.append("")

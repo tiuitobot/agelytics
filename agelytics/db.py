@@ -37,6 +37,7 @@ def _create_tables(conn: sqlite3.Connection):
             completed INTEGER,
             rated INTEGER,
             version TEXT,
+            resign_player TEXT,
             ingested_at TEXT DEFAULT (datetime('now'))
         );
         
@@ -54,10 +55,46 @@ def _create_tables(conn: sqlite3.Connection):
             eapm INTEGER
         );
         
+        CREATE TABLE IF NOT EXISTS match_age_ups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_id INTEGER REFERENCES matches(id),
+            player TEXT,
+            age TEXT,
+            timestamp_secs REAL
+        );
+        
+        CREATE TABLE IF NOT EXISTS match_units (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_id INTEGER REFERENCES matches(id),
+            player TEXT,
+            unit TEXT,
+            count INTEGER
+        );
+        
+        CREATE TABLE IF NOT EXISTS match_researches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_id INTEGER REFERENCES matches(id),
+            player TEXT,
+            tech TEXT,
+            timestamp_secs REAL
+        );
+        
+        CREATE TABLE IF NOT EXISTS match_buildings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_id INTEGER REFERENCES matches(id),
+            player TEXT,
+            building TEXT,
+            count INTEGER
+        );
+        
         CREATE INDEX IF NOT EXISTS idx_matches_played ON matches(played_at);
         CREATE INDEX IF NOT EXISTS idx_matches_hash ON matches(file_hash);
         CREATE INDEX IF NOT EXISTS idx_players_match ON match_players(match_id);
         CREATE INDEX IF NOT EXISTS idx_players_name ON match_players(name);
+        CREATE INDEX IF NOT EXISTS idx_age_ups_match ON match_age_ups(match_id);
+        CREATE INDEX IF NOT EXISTS idx_units_match ON match_units(match_id);
+        CREATE INDEX IF NOT EXISTS idx_researches_match ON match_researches(match_id);
+        CREATE INDEX IF NOT EXISTS idx_buildings_match ON match_buildings(match_id);
     """)
     conn.commit()
 
@@ -68,14 +105,15 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
         cur = conn.execute("""
             INSERT INTO matches (file_hash, file_path, played_at, duration_secs,
                                  map_name, map_id, game_type, diplomacy, speed,
-                                 pop_limit, completed, rated, version)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 pop_limit, completed, rated, version, resign_player)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             match["file_hash"], match["file_path"], match["played_at"],
             match["duration_secs"], match["map_name"], match["map_id"],
             match["game_type"], match["diplomacy"], match["speed"],
             match["pop_limit"], 1 if match["completed"] else 0,
             1 if match.get("rated") else 0, match["version"],
+            match.get("resign_player"),
         ))
         match_id = cur.lastrowid
 
@@ -89,6 +127,33 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
                 p["color_id"], 1 if p["winner"] else 0, p["user_id"],
                 p["elo"], p["eapm"],
             ))
+
+        # Insert detailed data if present
+        for age_up in match.get("age_ups", []):
+            conn.execute("""
+                INSERT INTO match_age_ups (match_id, player, age, timestamp_secs)
+                VALUES (?, ?, ?, ?)
+            """, (match_id, age_up["player"], age_up["age"], age_up["timestamp_secs"]))
+        
+        for player, units in match.get("unit_production", {}).items():
+            for unit, count in units.items():
+                conn.execute("""
+                    INSERT INTO match_units (match_id, player, unit, count)
+                    VALUES (?, ?, ?, ?)
+                """, (match_id, player, unit, count))
+        
+        for research in match.get("researches", []):
+            conn.execute("""
+                INSERT INTO match_researches (match_id, player, tech, timestamp_secs)
+                VALUES (?, ?, ?, ?)
+            """, (match_id, research["player"], research["tech"], research["timestamp_secs"]))
+        
+        for player, buildings in match.get("buildings", {}).items():
+            for building, count in buildings.items():
+                conn.execute("""
+                    INSERT INTO match_buildings (match_id, player, building, count)
+                    VALUES (?, ?, ?, ?)
+                """, (match_id, player, building, count))
 
         conn.commit()
         return match_id
@@ -193,9 +258,51 @@ def get_all_matches(conn: sqlite3.Connection, player_name: str = None, limit: in
 
 
 def _match_with_players(conn: sqlite3.Connection, match: dict) -> dict:
+    """Fetch players and detailed data for a match."""
     players = conn.execute(
         "SELECT * FROM match_players WHERE match_id = ? ORDER BY number",
         (match["id"],)
     ).fetchall()
     match["players"] = [dict(p) for p in players]
+    
+    # Fetch age-ups
+    age_ups = conn.execute(
+        "SELECT player, age, timestamp_secs FROM match_age_ups WHERE match_id = ? ORDER BY timestamp_secs",
+        (match["id"],)
+    ).fetchall()
+    match["age_ups"] = [dict(a) for a in age_ups]
+    
+    # Fetch unit production
+    units = conn.execute(
+        "SELECT player, unit, count FROM match_units WHERE match_id = ?",
+        (match["id"],)
+    ).fetchall()
+    unit_production = {}
+    for u in units:
+        player = u["player"]
+        if player not in unit_production:
+            unit_production[player] = {}
+        unit_production[player][u["unit"]] = u["count"]
+    match["unit_production"] = unit_production
+    
+    # Fetch researches
+    researches = conn.execute(
+        "SELECT player, tech, timestamp_secs FROM match_researches WHERE match_id = ? ORDER BY timestamp_secs",
+        (match["id"],)
+    ).fetchall()
+    match["researches"] = [dict(r) for r in researches]
+    
+    # Fetch buildings
+    buildings = conn.execute(
+        "SELECT player, building, count FROM match_buildings WHERE match_id = ?",
+        (match["id"],)
+    ).fetchall()
+    building_counts = {}
+    for b in buildings:
+        player = b["player"]
+        if player not in building_counts:
+            building_counts[player] = {}
+        building_counts[player][b["building"]] = b["count"]
+    match["buildings"] = building_counts
+    
     return match

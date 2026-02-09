@@ -1,7 +1,9 @@
 """Parse AoE2 DE replay files using mgz."""
 
 import os
+import re
 import hashlib
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -104,6 +106,9 @@ def parse_replay(filepath: str) -> Optional[dict]:
         if not rated:
             return None
 
+        # Extract detailed action log data (graceful degradation)
+        detailed_data = _extract_detailed_data(s, players)
+
         return {
             "file_path": filepath,
             "file_hash": file_hash,
@@ -119,10 +124,112 @@ def parse_replay(filepath: str) -> Optional[dict]:
             "rated": rated,
             "version": version,
             "players": players,
+            **detailed_data,  # Merge detailed data (age_ups, units, etc.)
         }
 
     except Exception as e:
         return None
+
+
+def _extract_detailed_data(summary: Summary, players: list) -> dict:
+    """Extract detailed action log data from replay.
+    
+    Returns dict with age_ups, unit_production, researches, buildings, resign_player.
+    Gracefully degrades if data unavailable.
+    """
+    result = {
+        "age_ups": [],
+        "unit_production": {},
+        "researches": [],
+        "buildings": {},
+        "resign_player": None,
+    }
+    
+    try:
+        match = summary.match
+        
+        # Extract age-ups from match.uptimes
+        # Format: "[0:10:02.212000] blzulian -> Age.FEUDAL_AGE"
+        if hasattr(match, "uptimes") and match.uptimes:
+            age_pattern = re.compile(r"\[(\d+):(\d+):(\d+)\.(\d+)\]\s+(.+?)\s+->\s+Age\.(.+)")
+            for uptime_str in match.uptimes:
+                m = age_pattern.match(str(uptime_str))
+                if m:
+                    hours, mins, secs, microsecs, player_name, age_enum = m.groups()
+                    timestamp_secs = int(hours) * 3600 + int(mins) * 60 + int(secs) + int(microsecs) / 1000000.0
+                    
+                    # Convert age enum to readable name
+                    age_map = {
+                        "FEUDAL_AGE": "Feudal Age",
+                        "CASTLE_AGE": "Castle Age",
+                        "IMPERIAL_AGE": "Imperial Age",
+                    }
+                    age_name = age_map.get(age_enum, age_enum)
+                    
+                    result["age_ups"].append({
+                        "player": player_name.strip(),
+                        "age": age_name,
+                        "timestamp_secs": timestamp_secs,
+                    })
+        
+        # Extract inputs (units, researches, buildings, resigns)
+        if hasattr(match, "inputs") and match.inputs:
+            unit_counts = defaultdict(lambda: defaultdict(int))
+            building_counts = defaultdict(lambda: defaultdict(int))
+            
+            for inp in match.inputs:
+                try:
+                    player_name = inp.player.name if hasattr(inp.player, "name") else None
+                    if not player_name:
+                        continue
+                    
+                    timestamp_secs = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
+                    
+                    if inp.type == "Queue" and hasattr(inp, "payload") and inp.payload:
+                        # Unit production
+                        unit = inp.payload.get("unit")
+                        amount = inp.payload.get("amount", 1)
+                        if unit:
+                            unit_counts[player_name][unit] += amount
+                    
+                    elif inp.type == "Research" and hasattr(inp, "payload") and inp.payload:
+                        # Research
+                        tech = inp.payload.get("technology")
+                        if tech:
+                            result["researches"].append({
+                                "player": player_name,
+                                "tech": tech,
+                                "timestamp_secs": timestamp_secs,
+                            })
+                    
+                    elif inp.type == "Build" and hasattr(inp, "payload") and inp.payload:
+                        # Building
+                        building = inp.payload.get("building")
+                        if building:
+                            building_counts[player_name][building] += 1
+                    
+                    elif inp.type == "Resign":
+                        # Resignation (only record the first resign)
+                        if not result["resign_player"]:
+                            result["resign_player"] = player_name
+                
+                except Exception:
+                    # Skip individual inputs that fail
+                    continue
+            
+            # Convert defaultdicts to regular dicts
+            result["unit_production"] = {
+                player: dict(units) for player, units in unit_counts.items()
+            }
+            result["buildings"] = {
+                player: dict(buildings) for player, buildings in building_counts.items()
+            }
+    
+    except Exception:
+        # If detailed extraction fails entirely, return empty data
+        pass
+    
+    return result
 
 
 def _file_hash(filepath: str) -> str:
