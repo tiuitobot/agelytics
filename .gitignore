@@ -4,3 +4,4 @@ __pycache__/
 data/*.db
 *.pyc
 .env
+data/watcher_state.json
