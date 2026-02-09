@@ -164,6 +164,34 @@ def count_matches(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT COUNT(*) FROM matches").fetchone()[0]
 
 
+def get_all_matches(conn: sqlite3.Connection, player_name: str = None, limit: int = 50) -> list[dict]:
+    """Get all matches, optionally filtered by player name, ordered by date DESC."""
+    if player_name:
+        # Filter matches where the player participated
+        rows = conn.execute("""
+            SELECT DISTINCT m.*
+            FROM matches m
+            JOIN match_players mp ON mp.match_id = m.id
+            WHERE mp.name = ?
+            ORDER BY m.played_at DESC
+            LIMIT ?
+        """, (player_name, limit)).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT * FROM matches
+            ORDER BY played_at DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+    
+    matches = []
+    for row in rows:
+        match = dict(row)
+        match = _match_with_players(conn, match)
+        matches.append(match)
+    
+    return matches
+
+
 def _match_with_players(conn: sqlite3.Connection, match: dict) -> dict:
     players = conn.execute(
         "SELECT * FROM match_players WHERE match_id = ? ORDER BY number",

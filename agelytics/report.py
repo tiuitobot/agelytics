@@ -116,3 +116,50 @@ def player_summary(stats: dict) -> str:
     
     lines.append("")
     return "\n".join(lines)
+
+
+def matches_table(matches: list[dict], player_name: str = None) -> str:
+    """Generate a compact table listing all matches.
+    
+    If player_name is given, shows result from that player's perspective.
+    """
+    if not matches:
+        return "No matches found."
+    
+    lines = []
+    lines.append("ID   Date        Map           Civ            vs Civ          ELO  Result  Duration")
+    lines.append("─" * 90)
+    
+    for m in matches:
+        players = m.get("players", [])
+        if not players:
+            continue
+        
+        # Find the player and opponent
+        me = None
+        opponent = None
+        
+        if player_name:
+            for p in players:
+                if p["name"].lower() == player_name.lower():
+                    me = p
+                else:
+                    opponent = p
+        
+        if not me:
+            me = players[0]
+            opponent = players[1] if len(players) > 1 else None
+        
+        # Format fields
+        match_id = str(m["id"]).ljust(4)
+        date = m.get("played_at", "?")[:10]  # YYYY-MM-DD
+        map_name = (m.get("map_name", "?")[:13]).ljust(13)
+        my_civ = (me["civ_name"][:14]).ljust(14)
+        opp_civ = (opponent["civ_name"][:14] if opponent else "?").ljust(14)
+        elo = str(me.get("elo") or "?").ljust(4)
+        result = "W" if me.get("winner") else "L"
+        duration = format_duration(m.get("duration_secs", 0))
+        
+        lines.append(f"{match_id} {date}  {map_name} {my_civ} {opp_civ} {elo} {result}       {duration}")
+    
+    return "\n".join(lines)

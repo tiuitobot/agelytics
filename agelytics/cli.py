@@ -7,8 +7,8 @@ import sys
 
 from . import __version__
 from .parser import parse_replay
-from .db import get_db, insert_match, get_last_match, get_match_by_id, get_player_stats, count_matches
-from .report import match_report, player_summary
+from .db import get_db, insert_match, get_last_match, get_match_by_id, get_player_stats, count_matches, get_all_matches
+from .report import match_report, player_summary, matches_table
 
 
 def cmd_ingest(args):
@@ -66,6 +66,22 @@ def cmd_report(args):
     """Show a match report."""
     conn = get_db(args.db)
     
+    # Handle --all flag (list all matches)
+    if args.all:
+        if not args.player:
+            print("Error: --all requires --player/-p to specify player perspective", file=sys.stderr)
+            return 1
+        
+        matches = get_all_matches(conn, player_name=args.player, limit=args.limit or 50)
+        if not matches:
+            print(f"No matches found for player '{args.player}'.", file=sys.stderr)
+            return 1
+        
+        print(matches_table(matches, player_name=args.player))
+        conn.close()
+        return 0
+    
+    # Handle single match report
     if args.match_id:
         match = get_match_by_id(conn, args.match_id)
         if not match:
@@ -108,9 +124,11 @@ def main():
     
     # report
     p_report = subs.add_parser("report", help="Show match report")
-    p_report.add_argument("--last", action="store_true", default=True)
+    p_report.add_argument("--last", action="store_true", default=True, help="Show last match (default)")
     p_report.add_argument("--id", dest="match_id", type=int, help="Match ID")
+    p_report.add_argument("--all", action="store_true", help="List all matches (requires --player)")
     p_report.add_argument("--player", "-p", default=None, help="Player perspective")
+    p_report.add_argument("--limit", type=int, default=50, help="Limit number of matches in --all mode")
     
     # stats
     p_stats = subs.add_parser("stats", help="Player statistics")
