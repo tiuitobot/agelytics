@@ -273,6 +273,87 @@ def match_report(match: dict, player_name: str = None) -> str:
             if metric_parts:
                 lines.append(f"     {player}: {', '.join(metric_parts)}")
     
+    # NEW: Production Buildings by Age
+    prod_buildings = match.get("production_buildings_by_age", {})
+    if prod_buildings:
+        lines.append("")
+        lines.append("  🏗️ Production Buildings by Age:")
+        
+        # Building abbreviations (avoid collisions)
+        building_abbrev = {
+            "Archery Range": "Rng",
+            "Barracks": "Brk",
+            "Stable": "Stb",
+            "Siege Workshop": "Sge",
+        }
+        
+        for player in [p["name"] for p in players]:
+            player_buildings = prod_buildings.get(player, {})
+            if not player_buildings:
+                continue
+            
+            age_summaries = []
+            for age in ["Dark", "Feudal", "Castle", "Imperial"]:
+                buildings = player_buildings.get(age, {})
+                if buildings:
+                    building_strs = [f"{count}{building_abbrev.get(b, b[:3])}" for b, count in buildings.items()]
+                    age_summaries.append(f"{age}: {' '.join(building_strs)}")
+            
+            if age_summaries:
+                lines.append(f"     {player}: {', '.join(age_summaries)}")
+    
+    # NEW: Housed Count
+    housed_count = match.get("housed_count", {})
+    if housed_count and any(count > 0 for count in housed_count.values()):
+        lines.append("")
+        lines.append("  🏠 Housed Events:")
+        for player in [p["name"] for p in players]:
+            count = housed_count.get(player, 0)
+            if count > 0:
+                indicator = "⚠️" if count >= 3 else "⚡"
+                lines.append(f"     {indicator} {player}: {count} times")
+    
+    # NEW: Key Tech Timings
+    from .tech_timings import extract_key_techs, format_timing, assess_timing
+    
+    lines.append("")
+    lines.append("  📚 Key Tech Timings:")
+    
+    for player in [p["name"] for p in players]:
+        key_techs = extract_key_techs(match, player)
+        if not key_techs:
+            continue
+        
+        # Group by category
+        by_category = {}
+        for tech_data in key_techs:
+            cat = tech_data["category"]
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(tech_data)
+        
+        lines.append(f"     {player}:")
+        for category in ["Economy", "Military", "Blacksmith", "University"]:
+            techs = by_category.get(category, [])
+            if techs:
+                tech_strs = []
+                for tech_data in techs[:5]:  # Limit to 5 per category
+                    tech = tech_data["tech"]
+                    ts = tech_data["timestamp_secs"]
+                    timing_str = format_timing(ts)
+                    assessment = assess_timing(tech, ts)
+                    
+                    # Add indicator for timing quality
+                    indicator = ""
+                    if assessment == "Good":
+                        indicator = "✅"
+                    elif assessment == "Poor":
+                        indicator = "⚠️"
+                    
+                    tech_strs.append(f"{tech} {timing_str}{indicator}")
+                
+                lines.append(f"       {category}: {', '.join(tech_strs)}")
+    
     # Key techs
     researches = match.get("researches", [])
     if researches:

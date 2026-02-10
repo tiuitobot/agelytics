@@ -119,6 +119,8 @@ def _migrate(conn: sqlite3.Connection):
         ("match_players", "tc_idle_feudal", "REAL"),
         ("match_players", "tc_idle_castle", "REAL"),
         ("match_players", "tc_idle_imperial", "REAL"),
+        ("match_players", "production_buildings_json", "TEXT"),
+        ("match_players", "housed_count", "INTEGER"),
     ]
     
     for table, col, col_type in migrations:
@@ -151,6 +153,8 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
         metrics_data = match.get("metrics", {})
         openings_data = match.get("openings", {})
         tc_idle_by_age_data = match.get("tc_idle_by_age", {})
+        production_buildings_data = match.get("production_buildings_by_age", {})
+        housed_count_data = match.get("housed_count", {})
         
         for p in match["players"]:
             player_name = p["name"]
@@ -176,19 +180,27 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
             tc_idle_castle = tc_idle_by_age.get("Castle")
             tc_idle_imperial = tc_idle_by_age.get("Imperial")
             
+            # Production buildings by age + housed count
+            import json
+            prod_buildings = production_buildings_data.get(player_name, {})
+            prod_buildings_json = json.dumps(prod_buildings) if prod_buildings else None
+            housed_count = housed_count_data.get(player_name)
+            
             conn.execute("""
                 INSERT INTO match_players (match_id, name, number, civ_id, civ_name,
                                            color_id, winner, user_id, elo, eapm, tc_idle_secs,
                                            estimated_idle_vill_time, farm_gap_average,
                                            military_timing_index, tc_count_final,
                                            opening_strategy, tc_idle_dark, tc_idle_feudal,
-                                           tc_idle_castle, tc_idle_imperial)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           tc_idle_castle, tc_idle_imperial,
+                                           production_buildings_json, housed_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 match_id, player_name, p["number"], p["civ_id"], p["civ_name"],
                 p["color_id"], 1 if p["winner"] else 0, p["user_id"],
                 p["elo"], p["eapm"], tc_idle, est_idle, farm_gap, mil_timing, tc_count_final,
                 opening, tc_idle_dark, tc_idle_feudal, tc_idle_castle, tc_idle_imperial,
+                prod_buildings_json, housed_count,
             ))
 
         # Insert detailed data if present
@@ -394,6 +406,23 @@ def _match_with_players(conn: sqlite3.Connection, match: dict) -> dict:
     match["_farm_build_timestamps"] = {}
     match["_first_military_timestamp"] = {}
     match["_tc_build_timestamps"] = {}
+    
+    # Reconstruct production_buildings_by_age and housed_count
+    import json
+    production_buildings_by_age = {}
+    housed_count = {}
+    for player in match["players"]:
+        pname = player["name"]
+        if player.get("production_buildings_json"):
+            try:
+                production_buildings_by_age[pname] = json.loads(player["production_buildings_json"])
+            except:
+                production_buildings_by_age[pname] = {}
+        if player.get("housed_count") is not None:
+            housed_count[pname] = player["housed_count"]
+    
+    match["production_buildings_by_age"] = production_buildings_by_age
+    match["housed_count"] = housed_count
     
     # Reconstruct metrics for each player
     # Use stored values from DB columns where available, compute rest
