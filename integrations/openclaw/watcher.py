@@ -162,10 +162,18 @@ def check_new_replays(db_path=None):
     new_matches = []
 
     for filepath in files:
-        # Quick hash check
+        # Skip files still being written (modified in last 60 seconds)
+        # AoE2 creates the replay file at game start and writes throughout
+        file_age = time.time() - filepath.stat().st_mtime
+        if file_age < 60:
+            continue
+
+        # Quick hash check (first 64KB + file size for uniqueness)
+        file_size = filepath.stat().st_size
         h = hashlib.md5()
         with open(filepath, "rb") as f:
             h.update(f.read(65536))
+        h.update(str(file_size).encode())
         file_hash = h.hexdigest()
 
         if file_hash in seen:
