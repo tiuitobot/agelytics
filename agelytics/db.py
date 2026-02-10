@@ -349,4 +349,94 @@ def _match_with_players(conn: sqlite3.Connection, match: dict) -> dict:
         building_counts[player][b["building"]] = b["count"]
     match["buildings"] = building_counts
     
+    # Reconstruct helper data structures for metrics
+    # tc_idle dict from match_players.tc_idle_secs
+    tc_idle = {}
+    estimated_idle = {}
+    for player in match["players"]:
+        pname = player["name"]
+        if player.get("tc_idle_secs") is not None:
+            tc_idle[pname] = player["tc_idle_secs"]
+        if player.get("estimated_idle_vill_time") is not None:
+            estimated_idle[pname] = player["estimated_idle_vill_time"]
+    
+    match["tc_idle"] = tc_idle
+    match["estimated_idle_villager_time"] = estimated_idle
+    
+    # Reconstruct vill_queue_timestamps from unit production (approximate)
+    # We don't have exact timestamps, so metrics that need this will return None
+    # This is OK - they'll compute correctly if replay is re-parsed
+    match["vill_queue_timestamps"] = {}
+    
+    # Reconstruct enriched data (for farm_gap, military_timing, tc_progression)
+    # These are NOT in DB, so metrics depending on them will return None
+    # unless we re-parse the replay file
+    match["_farm_build_timestamps"] = {}
+    match["_first_military_timestamp"] = {}
+    match["_tc_build_timestamps"] = {}
+    
+    # Reconstruct metrics for each player
+    # Use stored values from DB columns where available, compute rest
+    from .metrics import compute_all_metrics
+    metrics_by_player = {}
+    for player in match["players"]:
+        player_name = player["name"]
+        
+        # Start with stored metric values
+        stored_metrics = {
+            "tc_idle_percent": None,
+            "farm_gap_average": player.get("farm_gap_average"),
+            "military_timing_index": player.get("military_timing_index"),
+            "tc_count_progression": None,
+            "estimated_idle_villager_time": player.get("estimated_idle_vill_time"),
+            "villager_production_rate_by_age": None,
+            "resource_collection_efficiency": None,
+        }
+        
+        # Compute metrics that can be derived from available data
+        computed = compute_all_metrics(match, player_name)
+        
+        # Merge: prefer stored values, fall back to computed
+        for key in computed:
+            if stored_metrics.get(key) is None:
+                stored_metrics[key] = computed[key]
+        
+        # Build tc_count_progression from stored tc_count_final if available
+        if player.get("tc_count_final") and stored_metrics["tc_count_progression"] is None:
+            # Basic progression: start with 1, end with final count
+            # This is approximate without timestamps
+            tc_final = player["tc_count_final"]
+            stored_metrics["tc_count_progression"] = [(0.0, 1)]
+            if tc_final > 1:
+                # Approximate: assume TCs built evenly spaced (very rough)
+                duration = match.get("duration_secs", 0)
+                if duration > 0:
+                    for i in range(2, tc_final + 1):
+                        # Rough estimate: TCs built after Castle Age (50% of game)
+                        ts = duration * (0.5 + (i - 2) * 0.1)
+                        stored_metrics["tc_count_progression"].append((ts, i))
+        
+        metrics_by_player[player_name] = stored_metrics
+    
+    match["metrics"] = metrics_by_player
+    
+    # Build action_log (formatted text of all actions for deep coach)
+    action_log_lines = []
+    
+    # Age-ups
+    for age_up in match["age_ups"]:
+        t = age_up["timestamp_secs"]
+        action_log_lines.append(
+            f"[{int(t)//60:02d}:{int(t)%60:02d}] {age_up['player']} → {age_up['age']}"
+        )
+    
+    # Researches (sorted by time)
+    for research in sorted(match["researches"], key=lambda x: x["timestamp_secs"]):
+        t = research["timestamp_secs"]
+        action_log_lines.append(
+            f"[{int(t)//60:02d}:{int(t)%60:02d}] {research['player']} researched {research['tech']}"
+        )
+    
+    match["action_log"] = action_log_lines
+    
     return match
