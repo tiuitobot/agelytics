@@ -313,6 +313,25 @@ def match_report(match: dict, player_name: str = None) -> str:
                 indicator = "⚠️" if count >= 3 else "⚡"
                 lines.append(f"     {indicator} {player}: {count} times")
     
+    # NEW: Walling Analysis
+    # Walling tile count via Chebyshev distance inspired by AgeAlyser (github.com/byrnesy924/AgeAlyser_2)
+    wall_tiles = match.get("wall_tiles_by_age", {})
+    if wall_tiles and any(any(tiles > 0 for tiles in ages.values()) for ages in wall_tiles.values()):
+        lines.append("")
+        lines.append("  🧱 Walling:")
+        for player in [p["name"] for p in players]:
+            player_walls = wall_tiles.get(player, {})
+            if player_walls and any(tiles > 0 for tiles in player_walls.values()):
+                age_strs = []
+                for age in ["Dark", "Feudal", "Castle", "Imperial"]:
+                    tiles = player_walls.get(age, 0)
+                    if tiles > 0:
+                        age_strs.append(f"{age}: {tiles}")
+                
+                if age_strs:
+                    total = sum(player_walls.values())
+                    lines.append(f"     {player}: {', '.join(age_strs)} (Total: {total} tiles)")
+    
     # NEW: Key Tech Timings
     from .tech_timings import extract_key_techs, format_timing, assess_timing
     
