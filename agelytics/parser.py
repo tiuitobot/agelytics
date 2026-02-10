@@ -182,10 +182,13 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
         "unit_production": {},
         "researches": [],
         "buildings": {},
+        "building_timestamps": {},  # NEW: {player: [{building, timestamp_secs}]}
         "resign_player": None,
         "tc_idle": {},
         "estimated_idle_villager_time": {},
         "vill_queue_timestamps": {},
+        "production_buildings_by_age": {},  # NEW: {player: {age: {building: count}}}
+        "housed_count": {},  # NEW: {player: count}
     }
     
     try:
@@ -219,6 +222,7 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
         if hasattr(match, "inputs") and match.inputs:
             unit_counts = defaultdict(lambda: defaultdict(int))
             building_counts = defaultdict(lambda: defaultdict(int))
+            building_timestamps = defaultdict(list)  # NEW: track building timestamps
             
             for inp in match.inputs:
                 try:
@@ -250,6 +254,11 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                         building = inp.payload.get("building")
                         if building:
                             building_counts[player_name][building] += 1
+                            # NEW: Store timestamp for each building
+                            building_timestamps[player_name].append({
+                                "building": building,
+                                "timestamp_secs": timestamp_secs,
+                            })
                     
                     elif inp.type == "Resign":
                         # Resignation (only record the first resign)
@@ -267,6 +276,7 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
             result["buildings"] = {
                 player: dict(buildings) for player, buildings in building_counts.items()
             }
+            result["building_timestamps"] = dict(building_timestamps)
             
             # Calculate estimated idle villager time per player (PROXY)
             # Soma de gaps > 30s entre comandos econômicos (Move, Build, Queue Villager, etc.)
@@ -310,6 +320,91 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
             
             # Villager queue timestamps por player (para Villager Production Rate por Age)
             result["vill_queue_timestamps"] = dict(vill_queue_timestamps)
+            
+            # NEW: Calculate production buildings by age
+            # Production buildings: Archery Range, Barracks, Stable, Siege Workshop
+            PRODUCTION_BUILDINGS = {"Archery Range", "Barracks", "Stable", "Siege Workshop"}
+            production_by_age = {}
+            
+            for player_name, buildings_list in building_timestamps.items():
+                production_by_age[player_name] = {
+                    "Dark": {},
+                    "Feudal": {},
+                    "Castle": {},
+                    "Imperial": {},
+                }
+                
+                # Get age-up times for this player
+                player_age_times = {}
+                for age_up in result["age_ups"]:
+                    if age_up["player"] == player_name:
+                        player_age_times[age_up["age"]] = age_up["timestamp_secs"]
+                
+                # Determine age boundaries
+                feudal_time = player_age_times.get("Feudal Age")
+                castle_time = player_age_times.get("Castle Age")
+                imperial_time = player_age_times.get("Imperial Age")
+                
+                # Classify each production building by age
+                for building_entry in buildings_list:
+                    building = building_entry["building"]
+                    timestamp = building_entry["timestamp_secs"]
+                    
+                    # Only count production buildings
+                    if building not in PRODUCTION_BUILDINGS:
+                        continue
+                    
+                    # Determine age
+                    age = "Dark"
+                    if feudal_time and timestamp >= feudal_time:
+                        age = "Feudal"
+                    if castle_time and timestamp >= castle_time:
+                        age = "Castle"
+                    if imperial_time and timestamp >= imperial_time:
+                        age = "Imperial"
+                    
+                    # Increment count
+                    if building not in production_by_age[player_name][age]:
+                        production_by_age[player_name][age] = {}
+                    if building not in production_by_age[player_name][age]:
+                        production_by_age[player_name][age][building] = 0
+                    production_by_age[player_name][age][building] += 1
+            
+            result["production_buildings_by_age"] = production_by_age
+            
+            # NEW: Calculate housed count
+            # Heuristic: Count House build events that occur in rapid succession (<10s apart)
+            # or multiple Houses built during early game (first 10 minutes)
+            housed_counts = {}
+            HOUSE_BURST_THRESHOLD = 10  # seconds
+            
+            for player_name, buildings_list in building_timestamps.items():
+                house_builds = [
+                    b["timestamp_secs"] for b in buildings_list 
+                    if b["building"] == "House"
+                ]
+                house_builds.sort()
+                
+                housed = 0
+                i = 0
+                while i < len(house_builds):
+                    # Count consecutive houses within threshold
+                    burst_count = 1
+                    j = i + 1
+                    while j < len(house_builds) and house_builds[j] - house_builds[j-1] < HOUSE_BURST_THRESHOLD:
+                        burst_count += 1
+                        j += 1
+                    
+                    # If 2+ houses in rapid succession, count as housed
+                    if burst_count >= 2:
+                        housed += 1
+                        i = j
+                    else:
+                        i += 1
+                
+                housed_counts[player_name] = housed
+            
+            result["housed_count"] = housed_counts
             
             # Calculate TC idle time per player
             # TC idle = gaps in villager production > 30s (train time ~25s)
