@@ -373,6 +373,8 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
             result["housed_count"] = housed_counts
             
             # Calculate TC idle time per player (v3: queue simulation + research-aware + multi-TC)
+            # Queue simulation concept inspired by AgeAlyser (https://github.com/byrnesy924/AgeAlyser_2)
+            # by byrnesy924, MIT License. Simplified without pandas/Factory pattern.
             TC_RESEARCH_TIMES = {
                 "Loom": 25, "Feudal Age": 130, "Castle Age": 160,
                 "Imperial Age": 190, "Wheelbarrow": 75, "Hand Cart": 55,
