@@ -340,7 +340,7 @@ class MatchPDF(FPDF):
     def txt(self, text, bold=False, color=None, size=10):
         self.set_font("Helvetica", "B" if bold else "", size)
         self.set_text_color(*(color or (50, 50, 50)))
-        self.multi_cell(0, 5, text)
+        self.multi_cell(0, 5, self._sanitize(text))
         self.ln(1)
 
     def data_line(self, label, value, unit="", assessment=None):
@@ -359,7 +359,7 @@ class MatchPDF(FPDF):
             val_color = (44, 62, 80)
         self.set_font("Helvetica", "B", 10)
         self.set_text_color(*val_color)
-        self.cell(0, 5, f"{value}{(' ' + unit) if unit else ''}", 0, 1)
+        self.cell(0, 5, self._sanitize(f"{value}{(' ' + unit) if unit else ''}"), 0, 1)
         self.ln(0.5)
 
     def kpi_row(self, kpis, y=None):
@@ -395,7 +395,7 @@ class MatchPDF(FPDF):
             else:
                 self.set_text_color(44, 62, 80)
             self.set_xy(x + 4, y + 2)
-            val_str = str(value)[:18]
+            val_str = self._sanitize(str(value)[:18])
             self.cell(w - 6, 9, val_str, 0, 0, "C")
 
             # Label
@@ -408,6 +408,18 @@ class MatchPDF(FPDF):
             self.cell(w - 6, 5, label, 0, 0, "C")
 
         self.set_y(y + 26)
+
+    @staticmethod
+    def _sanitize(text):
+        """Replace non-latin1 chars for Helvetica compat."""
+        replacements = {
+            "\u2013": "-", "\u2014": "-", "\u2018": "'", "\u2019": "'",
+            "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u2022": "-",
+            "\u2192": "->", "\u2190": "<-",
+        }
+        for k, v in replacements.items():
+            text = text.replace(k, v)
+        return text.encode("latin-1", errors="replace").decode("latin-1")
 
     def chart(self, img_path, width=175):
         if img_path is None:
