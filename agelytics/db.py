@@ -111,6 +111,9 @@ def _migrate(conn: sqlite3.Connection):
     
     migrations = [
         ("match_players", "estimated_idle_vill_time", "REAL"),
+        ("match_players", "farm_gap_average", "REAL"),
+        ("match_players", "military_timing_index", "REAL"),
+        ("match_players", "tc_count_final", "INTEGER"),
     ]
     
     for table, col, col_type in migrations:
@@ -140,18 +143,32 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
 
         tc_idle_data = match.get("tc_idle", {})
         est_idle_data = match.get("estimated_idle_villager_time", {})
+        metrics_data = match.get("metrics", {})
+        
         for p in match["players"]:
-            tc_idle = tc_idle_data.get(p["name"])
-            est_idle = est_idle_data.get(p["name"])
+            player_name = p["name"]
+            tc_idle = tc_idle_data.get(player_name)
+            est_idle = est_idle_data.get(player_name)
+            
+            # Extrair métricas do player
+            player_metrics = metrics_data.get(player_name, {})
+            farm_gap = player_metrics.get("farm_gap_average")
+            mil_timing = player_metrics.get("military_timing_index")
+            
+            # TC count final (último valor da progressão)
+            tc_prog = player_metrics.get("tc_count_progression")
+            tc_count_final = tc_prog[-1][1] if tc_prog and len(tc_prog) > 0 else None
+            
             conn.execute("""
                 INSERT INTO match_players (match_id, name, number, civ_id, civ_name,
                                            color_id, winner, user_id, elo, eapm, tc_idle_secs,
-                                           estimated_idle_vill_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           estimated_idle_vill_time, farm_gap_average,
+                                           military_timing_index, tc_count_final)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                match_id, p["name"], p["number"], p["civ_id"], p["civ_name"],
+                match_id, player_name, p["number"], p["civ_id"], p["civ_name"],
                 p["color_id"], 1 if p["winner"] else 0, p["user_id"],
-                p["elo"], p["eapm"], tc_idle, est_idle,
+                p["elo"], p["eapm"], tc_idle, est_idle, farm_gap, mil_timing, tc_count_final,
             ))
 
         # Insert detailed data if present

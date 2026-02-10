@@ -5,6 +5,9 @@ from .metrics import (
     estimated_idle_villager_time,
     villager_production_rate_by_age,
     resource_collection_efficiency,
+    farm_gap_average,
+    military_timing_index,
+    tc_count_progression,
 )
 
 
@@ -219,6 +222,36 @@ def match_report(match: dict, player_name: str = None) -> str:
             if extra_eco:
                 for item in extra_eco:
                     lines.append(f"     {player}: {item}")
+    
+    # Métricas determinísticas adicionais
+    metrics = match.get("metrics", {})
+    if metrics:
+        lines.append("")
+        lines.append("  📊 Métricas Avançadas:")
+        
+        for player in [p["name"] for p in players]:
+            player_metrics = metrics.get(player, {})
+            metric_parts = []
+            
+            # Farm gap average
+            farm_gap = player_metrics.get("farm_gap_average")
+            if farm_gap is not None:
+                metric_parts.append(f"Farm gap: {farm_gap:.1f}s avg")
+            
+            # Military timing index
+            mil_timing = player_metrics.get("military_timing_index")
+            if mil_timing is not None:
+                timing_desc = "rush" if mil_timing < 0.7 else "boom" if mil_timing > 1.2 else "padrão"
+                metric_parts.append(f"Mil timing: {mil_timing:.2f} ({timing_desc})")
+            
+            # TC count progression (just show final TC count)
+            tc_prog = player_metrics.get("tc_count_progression")
+            if tc_prog and len(tc_prog) > 1:
+                final_tc_count = tc_prog[-1][1]
+                metric_parts.append(f"TCs finais: {final_tc_count}")
+            
+            if metric_parts:
+                lines.append(f"     {player}: {', '.join(metric_parts)}")
     
     # Key techs
     researches = match.get("researches", [])

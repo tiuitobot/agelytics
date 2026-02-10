@@ -11,6 +11,7 @@ from typing import Optional
 from mgz.summary import Summary
 
 from .data import civ_name, map_name
+from .metrics import enrich_match_for_metrics, compute_all_metrics
 
 
 def parse_replay(filepath: str) -> Optional[dict]:
@@ -108,8 +109,12 @@ def parse_replay(filepath: str) -> Optional[dict]:
 
         # Extract detailed action log data (graceful degradation)
         detailed_data = _extract_detailed_data(s, players)
-
-        return {
+        
+        # Enriquecer dados para métricas determinísticas
+        enriched = enrich_match_for_metrics(s)
+        
+        # Montar dict base da partida
+        match_data = {
             "file_path": filepath,
             "file_hash": file_hash,
             "played_at": played_at,
@@ -125,7 +130,19 @@ def parse_replay(filepath: str) -> Optional[dict]:
             "version": version,
             "players": players,
             **detailed_data,  # Merge detailed data (age_ups, units, etc.)
+            **enriched,  # Merge enriched data (_farm_build_timestamps, etc.)
         }
+        
+        # Calcular métricas por jogador e armazenar em dicts separados
+        metrics_by_player = {}
+        for p in players:
+            player_name = p["name"]
+            metrics = compute_all_metrics(match_data, player_name)
+            metrics_by_player[player_name] = metrics
+        
+        match_data["metrics"] = metrics_by_player
+        
+        return match_data
 
     except Exception as e:
         return None

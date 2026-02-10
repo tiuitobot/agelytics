@@ -29,3 +29,39 @@ Auto-generated log of pattern-to-KB promotions.
 - opp_civ_missing: Malians (3G) — not in civilizations.json
 - opp_civ_missing: Byzantines (4G) — not in civilizations.json
 
+
+## 2026-02-10 17:26 — Auto-promotion (blzulian)
+
+- matchup_update: Franks_vs_Vietnamese (10G, 50%WR)
+- opp_civ_missing: Indians (3G) — not in civilizations.json
+- opp_civ_missing: Japanese (5G) — not in civilizations.json
+- opp_civ_missing: Cumans (5G) — not in civilizations.json
+- opp_civ_missing: Chinese (4G) — not in civilizations.json
+- opp_civ_missing: Khmer (6G) — not in civilizations.json
+- opp_civ_missing: Vikings (3G) — not in civilizations.json
+- opp_civ_missing: Koreans (3G) — not in civilizations.json
+- opp_civ_missing: Sicilians (5G) — not in civilizations.json
+- opp_civ_missing: Turks (7G) — not in civilizations.json
+- opp_civ_missing: Persians (7G) — not in civilizations.json
+- opp_civ_missing: Poles (3G) — not in civilizations.json
+- opp_civ_missing: Malians (3G) — not in civilizations.json
+- opp_civ_missing: Byzantines (4G) — not in civilizations.json
+
+
+## 2026-02-10 18:01 — Auto-promotion (blzulian)
+
+- matchup_update: Franks_vs_Vietnamese (10G, 60%WR)
+- opp_civ_missing: Indians (3G) — not in civilizations.json
+- opp_civ_missing: Japanese (5G) — not in civilizations.json
+- opp_civ_missing: Cumans (5G) — not in civilizations.json
+- opp_civ_missing: Chinese (4G) — not in civilizations.json
+- opp_civ_missing: Khmer (6G) — not in civilizations.json
+- opp_civ_missing: Vikings (3G) — not in civilizations.json
+- opp_civ_missing: Koreans (3G) — not in civilizations.json
+- opp_civ_missing: Sicilians (5G) — not in civilizations.json
+- opp_civ_missing: Turks (7G) — not in civilizations.json
+- opp_civ_missing: Persians (7G) — not in civilizations.json
+- opp_civ_missing: Poles (3G) — not in civilizations.json
+- opp_civ_missing: Malians (3G) — not in civilizations.json
+- opp_civ_missing: Byzantines (4G) — not in civilizations.json
+
