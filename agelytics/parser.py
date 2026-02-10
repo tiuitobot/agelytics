@@ -311,27 +311,94 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
             # Villager queue timestamps por player (para Villager Production Rate por Age)
             result["vill_queue_timestamps"] = dict(vill_queue_timestamps)
             
-            # Calculate TC idle time per player
-            # TC idle = gaps in villager production > 30s (train time ~25s)
+            # Calculate TC idle time per player (v2: batch-aware + research-aware + multi-TC)
+            TC_RESEARCH_TIMES = {
+                "Loom": 25, "Feudal Age": 130, "Castle Age": 160,
+                "Imperial Age": 190, "Wheelbarrow": 75, "Hand Cart": 55,
+                "Town Watch": 25, "Town Patrol": 40,
+            }
             VILL_TRAIN_TIME = 25
-            vill_queues = defaultdict(list)
+            
+            # Collect vill queue events + TC research periods
+            vill_events_tc = defaultdict(list)
+            tc_research_periods_tc = defaultdict(list)
             for inp in match.inputs:
                 try:
+                    pname = inp.player.name if hasattr(inp.player, "name") else None
+                    if not pname:
+                        continue
+                    ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
                     if inp.type == "Queue" and hasattr(inp, "payload") and inp.payload:
                         if inp.payload.get("unit") == "Villager":
-                            pname = inp.player.name if hasattr(inp.player, "name") else None
-                            if pname:
-                                vill_queues[pname].append(inp.timestamp.total_seconds())
+                            vill_events_tc[pname].append(ts)
+                    elif inp.type == "Research" and hasattr(inp, "payload") and inp.payload:
+                        tech = inp.payload.get("technology", "")
+                        if tech in TC_RESEARCH_TIMES:
+                            tc_research_periods_tc[pname].append((ts, ts + TC_RESEARCH_TIMES[tech]))
                 except Exception:
                     continue
             
-            for pname, times in vill_queues.items():
+            # Build simple TC count timeline from Build events (metrics not available yet)
+            tc_build_times = defaultdict(list)  # {player: [timestamp_secs]}
+            for inp in match.inputs:
+                try:
+                    if inp.type == "Build" and hasattr(inp, "payload") and inp.payload:
+                        if inp.payload.get("building") == "Town Center":
+                            pname = inp.player.name if hasattr(inp.player, "name") else None
+                            if pname:
+                                ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
+                                tc_build_times[pname].append(ts)
+                except Exception:
+                    continue
+            
+            for pname, times in vill_events_tc.items():
                 times.sort()
+                research_periods = sorted(tc_research_periods_tc.get(pname, []))
+                # Build TC progression: start with 1, +1 for each TC built (+150s build time)
+                tc_timeline = [(0, 1)]
+                for tc_ts in sorted(tc_build_times.get(pname, [])):
+                    tc_timeline.append((tc_ts + 150, tc_timeline[-1][1] + 1))
+                tc_progression = tc_timeline
+                
+                # Group queue events within 2s into batches
+                batches = []
+                idx = 0
+                while idx < len(times):
+                    batch_start = times[idx]
+                    count = 1
+                    while idx + 1 < len(times) and times[idx + 1] - batch_start < 2.0:
+                        count += 1
+                        idx += 1
+                    batches.append((batch_start, count))
+                    idx += 1
+                
+                def _tc_count_at(ts):
+                    n = 1
+                    if tc_progression:
+                        for tc_ts, tc_n in tc_progression:
+                            if ts >= tc_ts:
+                                n = tc_n
+                    return max(n, 1)
+                
                 total_idle = 0.0
-                for i in range(1, len(times)):
-                    gap = times[i] - times[i - 1]
-                    if gap > 30:
-                        total_idle += gap - VILL_TRAIN_TIME
+                for bi in range(1, len(batches)):
+                    prev_ts, prev_count = batches[bi - 1]
+                    curr_ts, _ = batches[bi]
+                    num_tcs = _tc_count_at(prev_ts)
+                    busy_time = (prev_count / num_tcs) * VILL_TRAIN_TIME
+                    gap_start = prev_ts + busy_time
+                    gap_end = curr_ts
+                    gap = gap_end - gap_start
+                    # Subtract TC research overlap
+                    for r_start, r_end in research_periods:
+                        if r_start >= gap_end:
+                            break
+                        o_start = max(gap_start, r_start)
+                        o_end = min(gap_end, r_end)
+                        if o_start < o_end:
+                            gap -= (o_end - o_start)
+                    if gap > 5:
+                        total_idle += gap
                 result["tc_idle"][pname] = round(total_idle, 1)
     
     except Exception:
@@ -396,68 +463,103 @@ def _calculate_tc_idle_by_age(match_data: dict) -> dict:
             if start is not None and end is None:
                 player_ages[pname][age] = (start, duration)
     
-    # Now calculate TC idle for each age
-    # We need to get villager queue timestamps from match inputs
+    # Now calculate TC idle for each age (v2: batch-aware + research-aware + multi-TC)
+    TC_RESEARCH_TIMES_BY_AGE = {
+        "Loom": 25, "Feudal Age": 130, "Castle Age": 160,
+        "Imperial Age": 190, "Wheelbarrow": 75, "Hand Cart": 55,
+        "Town Watch": 25, "Town Patrol": 40,
+    }
+    VILL_TRAIN_TIME = 25
+    
     try:
         raw_inputs = match_data.get("_raw_inputs")
         if not raw_inputs:
-            # Fallback: just return empty dicts
             for pname in [p["name"] for p in players]:
                 result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
             return result
         
-        # Collect villager queue timestamps per player
+        # Collect vill queue timestamps + TC research periods
         vill_queues = defaultdict(list)
+        tc_research_periods_age = defaultdict(list)
         for inp in raw_inputs:
             try:
+                pname = inp.player.name if hasattr(inp.player, "name") else None
+                if not pname:
+                    continue
+                ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
                 if inp.type == "Queue" and hasattr(inp, "payload") and inp.payload:
                     if inp.payload.get("unit") == "Villager":
-                        pname = inp.player.name if hasattr(inp.player, "name") else None
-                        if pname:
-                            ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
-                            vill_queues[pname].append(ts)
+                        vill_queues[pname].append(ts)
+                elif inp.type == "Research" and hasattr(inp, "payload") and inp.payload:
+                    tech = inp.payload.get("technology", "")
+                    if tech in TC_RESEARCH_TIMES_BY_AGE:
+                        tc_research_periods_age[pname].append((ts, ts + TC_RESEARCH_TIMES_BY_AGE[tech]))
             except Exception:
                 continue
         
-        VILL_TRAIN_TIME = 25
+        metrics_data = match_data.get("metrics", {})
         
         for pname in [p["name"] for p in players]:
             times = sorted(vill_queues.get(pname, []))
             ages = player_ages.get(pname, {})
+            research_periods = sorted(tc_research_periods_age.get(pname, []))
+            tc_progression = metrics_data.get(pname, {}).get("tc_count_progression", [(0, 1)])
             
-            # Initialize result for this player
             result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
             
-            # Calculate gaps and assign to ages
-            for i in range(1, len(times)):
-                gap_start = times[i - 1]
-                gap_end = times[i]
+            # Group queue events within 2s into batches
+            batches = []
+            idx = 0
+            while idx < len(times):
+                batch_start = times[idx]
+                count = 1
+                while idx + 1 < len(times) and times[idx + 1] - batch_start < 2.0:
+                    count += 1
+                    idx += 1
+                batches.append((batch_start, count))
+                idx += 1
+            
+            def _tc_count_at_age(ts):
+                n = 1
+                if tc_progression:
+                    for tc_ts, tc_n in tc_progression:
+                        if ts >= tc_ts:
+                            n = tc_n
+                return max(n, 1)
+            
+            for bi in range(1, len(batches)):
+                prev_ts, prev_count = batches[bi - 1]
+                curr_ts, _ = batches[bi]
+                num_tcs = _tc_count_at_age(prev_ts)
+                busy_time = (prev_count / num_tcs) * VILL_TRAIN_TIME
+                gap_start = prev_ts + busy_time
+                gap_end = curr_ts
                 gap = gap_end - gap_start
                 
-                if gap > 30:  # Idle threshold
-                    idle_time = gap - VILL_TRAIN_TIME
-                    
-                    # Determine which age(s) this gap falls into
+                # Subtract TC research overlap
+                for r_start, r_end in research_periods:
+                    if r_start >= gap_end:
+                        break
+                    o_start = max(gap_start, r_start)
+                    o_end = min(gap_end, r_end)
+                    if o_start < o_end:
+                        gap -= (o_end - o_start)
+                
+                if gap > 5:
+                    # Distribute across ages
                     for age_name, (age_start, age_end) in ages.items():
                         if age_start is None or age_end is None:
                             continue
-                        
-                        # Check overlap
-                        overlap_start = max(gap_start, age_start)
-                        overlap_end = min(gap_end, age_end)
-                        
-                        if overlap_start < overlap_end:
-                            # There's an overlap
-                            overlap_duration = overlap_end - overlap_start
-                            overlap_fraction = overlap_duration / gap
-                            result[pname][age_name] += idle_time * overlap_fraction
+                        a_start = max(gap_start, age_start)
+                        a_end = min(gap_end, age_end)
+                        if a_start < a_end:
+                            fraction = (a_end - a_start) / (gap_end - gap_start) if gap_end > gap_start else 0
+                            result[pname][age_name] += gap * fraction
             
-            # Round values
             for age_name in result[pname]:
                 result[pname][age_name] = round(result[pname][age_name], 1)
     
     except Exception:
-        # Fallback: return zeros
         for pname in [p["name"] for p in players]:
             result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
     
