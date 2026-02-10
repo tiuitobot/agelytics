@@ -121,6 +121,7 @@ def _migrate(conn: sqlite3.Connection):
         ("match_players", "tc_idle_imperial", "REAL"),
         ("match_players", "production_buildings_json", "TEXT"),
         ("match_players", "housed_count", "INTEGER"),
+        ("match_players", "wall_tiles_json", "TEXT"),
     ]
     
     for table, col, col_type in migrations:
@@ -155,6 +156,7 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
         tc_idle_by_age_data = match.get("tc_idle_by_age", {})
         production_buildings_data = match.get("production_buildings_by_age", {})
         housed_count_data = match.get("housed_count", {})
+        wall_tiles_data = match.get("wall_tiles_by_age", {})
         
         for p in match["players"]:
             player_name = p["name"]
@@ -180,11 +182,13 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
             tc_idle_castle = tc_idle_by_age.get("Castle")
             tc_idle_imperial = tc_idle_by_age.get("Imperial")
             
-            # Production buildings by age + housed count
+            # Production buildings by age + housed count + wall tiles
             import json
             prod_buildings = production_buildings_data.get(player_name, {})
             prod_buildings_json = json.dumps(prod_buildings) if prod_buildings else None
             housed_count = housed_count_data.get(player_name)
+            wall_tiles = wall_tiles_data.get(player_name, {})
+            wall_tiles_json = json.dumps(wall_tiles) if wall_tiles else None
             
             conn.execute("""
                 INSERT INTO match_players (match_id, name, number, civ_id, civ_name,
@@ -193,14 +197,14 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
                                            military_timing_index, tc_count_final,
                                            opening_strategy, tc_idle_dark, tc_idle_feudal,
                                            tc_idle_castle, tc_idle_imperial,
-                                           production_buildings_json, housed_count)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           production_buildings_json, housed_count, wall_tiles_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 match_id, player_name, p["number"], p["civ_id"], p["civ_name"],
                 p["color_id"], 1 if p["winner"] else 0, p["user_id"],
                 p["elo"], p["eapm"], tc_idle, est_idle, farm_gap, mil_timing, tc_count_final,
                 opening, tc_idle_dark, tc_idle_feudal, tc_idle_castle, tc_idle_imperial,
-                prod_buildings_json, housed_count,
+                prod_buildings_json, housed_count, wall_tiles_json,
             ))
 
         # Insert detailed data if present
@@ -407,10 +411,11 @@ def _match_with_players(conn: sqlite3.Connection, match: dict) -> dict:
     match["_first_military_timestamp"] = {}
     match["_tc_build_timestamps"] = {}
     
-    # Reconstruct production_buildings_by_age and housed_count
+    # Reconstruct production_buildings_by_age, housed_count, and wall_tiles_by_age
     import json
     production_buildings_by_age = {}
     housed_count = {}
+    wall_tiles_by_age = {}
     for player in match["players"]:
         pname = player["name"]
         if player.get("production_buildings_json"):
@@ -420,9 +425,15 @@ def _match_with_players(conn: sqlite3.Connection, match: dict) -> dict:
                 production_buildings_by_age[pname] = {}
         if player.get("housed_count") is not None:
             housed_count[pname] = player["housed_count"]
+        if player.get("wall_tiles_json"):
+            try:
+                wall_tiles_by_age[pname] = json.loads(player["wall_tiles_json"])
+            except:
+                wall_tiles_by_age[pname] = {}
     
     match["production_buildings_by_age"] = production_buildings_by_age
     match["housed_count"] = housed_count
+    match["wall_tiles_by_age"] = wall_tiles_by_age
     
     # Reconstruct metrics for each player
     # Use stored values from DB columns where available, compute rest

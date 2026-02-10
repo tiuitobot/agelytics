@@ -101,9 +101,9 @@ def cmd_report(args):
 
 def cmd_stats(args):
     """Show player statistics."""
+    from .stats import stats_report
     conn = get_db(args.db)
-    stats = get_player_stats(conn, args.player)
-    print(player_summary(stats))
+    print(stats_report(conn, args.player))
     conn.close()
     return 0
 

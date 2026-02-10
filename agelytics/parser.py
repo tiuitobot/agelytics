@@ -189,6 +189,7 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
         "vill_queue_timestamps": {},
         "production_buildings_by_age": {},  # NEW: {player: {age: {building: count}}}
         "housed_count": {},  # NEW: {player: count}
+        "wall_tiles_by_age": {},  # NEW: {player: {age: count}}
     }
     
     try:
@@ -218,11 +219,12 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                         "timestamp_secs": timestamp_secs,
                     })
         
-        # Extract inputs (units, researches, buildings, resigns)
+        # Extract inputs (units, researches, buildings, resigns, walls)
         if hasattr(match, "inputs") and match.inputs:
             unit_counts = defaultdict(lambda: defaultdict(int))
             building_counts = defaultdict(lambda: defaultdict(int))
             building_timestamps = defaultdict(list)  # NEW: track building timestamps
+            wall_events = defaultdict(list)  # NEW: track wall placements [{timestamp_secs, tiles}]
             
             for inp in match.inputs:
                 try:
@@ -259,6 +261,29 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                                 "building": building,
                                 "timestamp_secs": timestamp_secs,
                             })
+                    
+                    elif inp.type == "Wall" and hasattr(inp, "payload") and inp.payload:
+                        # Walling - count tiles via Chebyshev distance
+                        # Walling tile count via Chebyshev distance inspired by AgeAlyser (github.com/byrnesy924/AgeAlyser_2)
+                        building_type = inp.payload.get("building")
+                        if building_type in ("Palisade Wall", "Stone Wall"):
+                            # Get start and end positions
+                            start_x = None
+                            start_y = None
+                            if hasattr(inp, "position") and inp.position:
+                                start_x = getattr(inp.position, "x", None)
+                                start_y = getattr(inp.position, "y", None)
+                            
+                            end_x = inp.payload.get("x_end")
+                            end_y = inp.payload.get("y_end")
+                            
+                            if start_x is not None and start_y is not None and end_x is not None and end_y is not None:
+                                # Chebyshev distance = max(|x2-x1|, |y2-y1|)
+                                tiles = max(abs(end_x - start_x), abs(end_y - start_y)) + 1
+                                wall_events[player_name].append({
+                                    "timestamp_secs": timestamp_secs,
+                                    "tiles": tiles,
+                                })
                     
                     elif inp.type == "Resign":
                         # Resignation (only record the first resign)
@@ -371,6 +396,38 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                         i += 1
                 housed_counts[player_name] = housed
             result["housed_count"] = housed_counts
+            
+            # NEW: Calculate wall tiles by age
+            wall_tiles_by_age = {}
+            for player_name, wall_list in wall_events.items():
+                wall_tiles_by_age[player_name] = {"Dark": 0, "Feudal": 0, "Castle": 0, "Imperial": 0}
+                
+                # Get player's age-up times
+                player_age_times = {}
+                for age_up in result["age_ups"]:
+                    if age_up["player"] == player_name:
+                        player_age_times[age_up["age"]] = age_up["timestamp_secs"]
+                
+                feudal_time = player_age_times.get("Feudal Age")
+                castle_time = player_age_times.get("Castle Age")
+                imperial_time = player_age_times.get("Imperial Age")
+                
+                # Classify each wall event by age
+                for wall_event in wall_list:
+                    timestamp = wall_event["timestamp_secs"]
+                    tiles = wall_event["tiles"]
+                    
+                    age = "Dark"
+                    if feudal_time and timestamp >= feudal_time:
+                        age = "Feudal"
+                    if castle_time and timestamp >= castle_time:
+                        age = "Castle"
+                    if imperial_time and timestamp >= imperial_time:
+                        age = "Imperial"
+                    
+                    wall_tiles_by_age[player_name][age] += tiles
+            
+            result["wall_tiles_by_age"] = wall_tiles_by_age
             
             # Calculate TC idle time per player (v3: queue simulation + research-aware + multi-TC)
             # Queue simulation concept inspired by AgeAlyser (https://github.com/byrnesy924/AgeAlyser_2)
