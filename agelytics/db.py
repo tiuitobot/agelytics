@@ -98,6 +98,26 @@ def _create_tables(conn: sqlite3.Connection):
         CREATE INDEX IF NOT EXISTS idx_buildings_match ON match_buildings(match_id);
     """)
     conn.commit()
+    
+    # Migrations: add columns if missing (backward compatible)
+    _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection):
+    """Apply backward-compatible migrations (ALTER TABLE ADD COLUMN)."""
+    # Check existing columns in match_players
+    cursor = conn.execute("PRAGMA table_info(match_players)")
+    existing_cols = {row[1] for row in cursor.fetchall()}
+    
+    migrations = [
+        ("match_players", "estimated_idle_vill_time", "REAL"),
+    ]
+    
+    for table, col, col_type in migrations:
+        if col not in existing_cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+    
+    conn.commit()
 
 
 def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
@@ -119,16 +139,19 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
         match_id = cur.lastrowid
 
         tc_idle_data = match.get("tc_idle", {})
+        est_idle_data = match.get("estimated_idle_villager_time", {})
         for p in match["players"]:
             tc_idle = tc_idle_data.get(p["name"])
+            est_idle = est_idle_data.get(p["name"])
             conn.execute("""
                 INSERT INTO match_players (match_id, name, number, civ_id, civ_name,
-                                           color_id, winner, user_id, elo, eapm, tc_idle_secs)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           color_id, winner, user_id, elo, eapm, tc_idle_secs,
+                                           estimated_idle_vill_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 match_id, p["name"], p["number"], p["civ_id"], p["civ_name"],
                 p["color_id"], 1 if p["winner"] else 0, p["user_id"],
-                p["elo"], p["eapm"], tc_idle,
+                p["elo"], p["eapm"], tc_idle, est_idle,
             ))
 
         # Insert detailed data if present

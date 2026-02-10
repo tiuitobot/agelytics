@@ -144,6 +144,8 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
         "buildings": {},
         "resign_player": None,
         "tc_idle": {},
+        "estimated_idle_villager_time": {},
+        "vill_queue_timestamps": {},
     }
     
     try:
@@ -225,6 +227,49 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
             result["buildings"] = {
                 player: dict(buildings) for player, buildings in building_counts.items()
             }
+            
+            # Calculate estimated idle villager time per player (PROXY)
+            # Soma de gaps > 30s entre comandos econômicos (Move, Build, Queue Villager, etc.)
+            # PROXY: replay só tem inputs, não estado real dos aldeões
+            ECO_COMMAND_TYPES = {"Move", "Build", "Queue", "Waypoint", "Gather", "Repair"}
+            eco_cmd_timestamps = defaultdict(list)
+            vill_queue_timestamps = defaultdict(list)  # timestamps de Queue Villager por player
+            for inp in match.inputs:
+                try:
+                    pname = inp.player.name if hasattr(inp.player, "name") else None
+                    if not pname:
+                        continue
+                    ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
+                    
+                    # Eco commands: Build, Queue Villager, Move (could be vill move), Gather, Repair
+                    is_eco = False
+                    if inp.type in ECO_COMMAND_TYPES:
+                        if inp.type == "Queue" and hasattr(inp, "payload") and inp.payload:
+                            if inp.payload.get("unit") == "Villager":
+                                is_eco = True
+                                vill_queue_timestamps[pname].append(ts)
+                        elif inp.type == "Build":
+                            is_eco = True
+                        elif inp.type in ("Move", "Gather", "Repair", "Waypoint"):
+                            is_eco = True
+                    
+                    if is_eco:
+                        eco_cmd_timestamps[pname].append(ts)
+                except Exception:
+                    continue
+            
+            ECO_IDLE_THRESHOLD = 30  # seconds
+            for pname, times in eco_cmd_timestamps.items():
+                times.sort()
+                total_idle = 0.0
+                for i in range(1, len(times)):
+                    gap = times[i] - times[i - 1]
+                    if gap > ECO_IDLE_THRESHOLD:
+                        total_idle += gap - ECO_IDLE_THRESHOLD
+                result["estimated_idle_villager_time"][pname] = round(total_idle, 1)
+            
+            # Villager queue timestamps por player (para Villager Production Rate por Age)
+            result["vill_queue_timestamps"] = dict(vill_queue_timestamps)
             
             # Calculate TC idle time per player
             # TC idle = gaps in villager production > 30s (train time ~25s)

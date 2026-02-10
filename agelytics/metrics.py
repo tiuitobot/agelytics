@@ -230,6 +230,120 @@ def _get_age_timestamp(match: dict, player: str, age: str) -> Optional[float]:
     return None
 
 
+def estimated_idle_villager_time(match: dict, player: str) -> Optional[float]:
+    """Tempo estimado de aldeões ociosos (PROXY).
+
+    PROXY: Baseada em gaps entre comandos econômicos > 30s no action log.
+    O replay só contém inputs do jogador, não o estado real dos aldeões.
+    Gaps grandes entre comandos econômicos sugerem que aldeões podem estar
+    ociosos, mas não é uma medida exata.
+
+    Args:
+        match: dict de partida parseado.
+        player: nome do jogador.
+
+    Returns:
+        Tempo estimado em segundos, ou None se dados insuficientes.
+    """
+    idle_data = match.get("estimated_idle_villager_time", {})
+    value = idle_data.get(player)
+    if value is None:
+        return None
+    return value
+
+
+def villager_production_rate_by_age(match: dict, player: str) -> Optional[dict]:
+    """Aldeões produzidos por minuto, breakdown por age.
+
+    Calcula a taxa de produção de aldeões em cada age (Dark, Feudal, Castle, Imperial).
+    Benchmark: ~2.4/min (1 aldeão a cada 25s) é o ideal em Dark/Feudal.
+
+    Args:
+        match: dict de partida parseado (com vill_queue_timestamps).
+        player: nome do jogador.
+
+    Returns:
+        Dict {age_name: rate_per_min} ou None se dados insuficientes.
+    """
+    vill_timestamps = match.get("vill_queue_timestamps", {}).get(player, [])
+    if not vill_timestamps:
+        return None
+
+    age_ups = match.get("age_ups", [])
+    duration = match.get("duration_secs", 0)
+    if not duration:
+        return None
+
+    # Build age boundaries for this player
+    player_ages = {}
+    for au in age_ups:
+        if au["player"] == player:
+            player_ages[au["age"]] = au["timestamp_secs"]
+
+    # Define age ranges: (start, end)
+    boundaries = []
+    boundaries.append(("Dark Age", 0.0, player_ages.get("Feudal Age", duration)))
+    if "Feudal Age" in player_ages:
+        boundaries.append(("Feudal Age", player_ages["Feudal Age"],
+                          player_ages.get("Castle Age", duration)))
+    if "Castle Age" in player_ages:
+        boundaries.append(("Castle Age", player_ages["Castle Age"],
+                          player_ages.get("Imperial Age", duration)))
+    if "Imperial Age" in player_ages:
+        boundaries.append(("Imperial Age", player_ages["Imperial Age"], duration))
+
+    sorted_ts = sorted(vill_timestamps)
+    result = {}
+    for age_name, start, end in boundaries:
+        age_duration_min = (end - start) / 60.0
+        if age_duration_min <= 0:
+            continue
+        count = sum(1 for t in sorted_ts if start <= t < end)
+        result[age_name] = round(count / age_duration_min, 2)
+
+    return result if result else None
+
+
+def resource_collection_efficiency(match: dict, player: str) -> Optional[float]:
+    """Score de recursos coletados dividido por aldeões produzidos.
+
+    Eficiência por aldeão: quanto cada aldeão contribuiu em recursos.
+    Usa o resource_score do summary (se disponível) ou soma de recursos.
+
+    Args:
+        match: dict de partida parseado.
+        player: nome do jogador.
+
+    Returns:
+        Recursos por aldeão (float), ou None se dados insuficientes.
+    """
+    # Villager count from unit_production
+    units = match.get("unit_production", {}).get(player, {})
+    vill_count = units.get("Villager", 0)
+    if vill_count <= 0:
+        return None
+
+    # Resource score: try resource_score field, then summary
+    resource_score = None
+    # Check player data for score
+    for p in match.get("players", []):
+        if p.get("name") == player or (hasattr(p, "get") and p.get("name", "").lower() == player.lower()):
+            resource_score = p.get("resource_score") or p.get("economy_score")
+            break
+
+    if resource_score is None:
+        # Fallback: estimate from duration and vill count (rough)
+        # Avg villager gathers ~25 resources/min
+        duration_min = match.get("duration_secs", 0) / 60.0
+        if duration_min <= 0:
+            return None
+        # Estimate: avg active vills * 25 res/min * duration
+        # This is very rough, better to return None if no score
+        return None
+
+    return round(resource_score / vill_count, 1)
+
+
 def compute_all_metrics(match: dict, player: str) -> dict:
     """Calcula todas as métricas disponíveis para um jogador em uma partida.
 
@@ -247,4 +361,7 @@ def compute_all_metrics(match: dict, player: str) -> dict:
         "farm_gap_average": farm_gap_average(match, player),
         "military_timing_index": military_timing_index(match, player),
         "tc_count_progression": tc_count_progression(match, player),
+        "estimated_idle_villager_time": estimated_idle_villager_time(match, player),
+        "villager_production_rate_by_age": villager_production_rate_by_age(match, player),
+        "resource_collection_efficiency": resource_collection_efficiency(match, player),
     }

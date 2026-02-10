@@ -1,6 +1,11 @@
 """Generate text reports from match data."""
 
 from datetime import timedelta
+from .metrics import (
+    estimated_idle_villager_time,
+    villager_production_rate_by_age,
+    resource_collection_efficiency,
+)
 
 
 def format_duration(secs: float) -> str:
@@ -188,6 +193,32 @@ def match_report(match: dict, player_name: str = None) -> str:
             
             if eco_parts:
                 lines.append(f"     {player}: {', '.join(eco_parts)}")
+        
+        # New eco metrics per player
+        for player in [p["name"] for p in players]:
+            extra_eco = []
+            
+            # Estimated Idle Villager Time (PROXY)
+            idle_time = estimated_idle_villager_time(match, player)
+            if idle_time is not None and idle_time > 0:
+                mins = int(idle_time) // 60
+                secs = int(idle_time) % 60
+                extra_eco.append(f"Est. Idle Vill Time: {mins}m {secs}s (proxy)")
+            
+            # Villager Production Rate por Age
+            vill_rate = villager_production_rate_by_age(match, player)
+            if vill_rate:
+                rate_parts = [f"{age}: {rate}/min" for age, rate in vill_rate.items()]
+                extra_eco.append(f"Vill Rate: {', '.join(rate_parts)}")
+            
+            # Resource Collection Efficiency
+            res_eff = resource_collection_efficiency(match, player)
+            if res_eff is not None:
+                extra_eco.append(f"Res Efficiency: {res_eff} res/villager")
+            
+            if extra_eco:
+                for item in extra_eco:
+                    lines.append(f"     {player}: {item}")
     
     # Key techs
     researches = match.get("researches", [])
