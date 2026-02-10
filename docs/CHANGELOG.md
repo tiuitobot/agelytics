@@ -4,6 +4,11 @@ All notable changes to Agelytics are documented here.
 
 ## [Unreleased]
 
+### Documented
+- **Idle Villager Time** — investigação técnica concluiu que replays AoE2 não
+  expõem idle villager data (apenas inputs do jogador, não estado do jogo).
+  Documentado em `docs/IDLE_VILLAGER_LIMITATION.md` com proxies recomendados.
+
 ### Added
 - **Knowledge Base** (`knowledge/aoe2/`)
   - `civilizations.json` — 10 civs with bonuses, strengths, weaknesses, counters
