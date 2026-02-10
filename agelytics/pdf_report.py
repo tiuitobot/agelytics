@@ -135,18 +135,19 @@ def chart_tc_idle_by_era(match):
     df["Era"] = pd.Categorical(df["Era"], categories=["Dark", "Feudal", "Castle", "Imperial"], ordered=True)
     colors = get_player_colors(len(players))
 
-    fig, ax = plt.subplots(figsize=(7.5, 3.2))
+    fig, ax = plt.subplots(figsize=(7.5, 3.5))
     sns.barplot(data=df, x="Era", y="Idle (s)", hue="Player",
                 palette=colors, ax=ax, edgecolor="white", linewidth=0.5)
 
-    # Add time labels
+    # Always show labels — including "0:00" for zero bars
     for container in ax.containers:
         for bar in container:
             h = bar.get_height()
-            if h > 15:
-                ax.text(bar.get_x() + bar.get_width() / 2, h + 3,
-                        fmt(h), ha="center", va="bottom", fontsize=7.5,
-                        color=COLORS["text_secondary"])
+            label = fmt(h) if h > 0 else "0:00"
+            y_pos = max(h, 2) + 3
+            ax.text(bar.get_x() + bar.get_width() / 2, y_pos,
+                    label, ha="center", va="bottom", fontsize=8,
+                    color=COLORS["text_secondary"], fontweight="bold" if h > 60 else "normal")
 
     ax.set_ylabel("Idle Time (seconds)", fontsize=9)
     ax.set_xlabel("")
@@ -293,16 +294,17 @@ class MatchPDF(FPDF):
         self.temp_images = []
 
     def header(self):
-        self.set_font("Helvetica", "B", 18)
+        self.set_font("Helvetica", "B", 20)
         self.set_text_color(44, 62, 80)
-        self.cell(0, 7, "AGELYTICS", 0, 0, "L")
+        self.cell(0, 8, "AGELYTICS", 0, 0, "L")
         self.set_font("Helvetica", "", 9)
-        self.set_text_color(127, 140, 141)
-        self.cell(0, 7, f"Page {self.page_no()}", 0, 1, "R")
+        self.set_text_color(150, 150, 150)
+        self.cell(0, 8, f"Page {self.page_no()}", 0, 1, "R")
+        # Bold accent line
         self.set_draw_color(44, 62, 80)
-        self.set_line_width(0.4)
+        self.set_line_width(0.6)
         self.line(10, self.get_y(), 200, self.get_y())
-        self.ln(4)
+        self.ln(5)
 
     def footer(self):
         self.set_y(-12)
@@ -313,28 +315,52 @@ class MatchPDF(FPDF):
                   0, 0, "C")
 
     def sep(self):
-        self.set_draw_color(210, 210, 210)
-        self.set_line_width(0.2)
+        self.set_draw_color(200, 200, 200)
+        self.set_line_width(0.3)
         self.line(10, self.get_y(), 200, self.get_y())
-        self.ln(4)
+        self.ln(5)
 
     def section(self, title, emoji=""):
-        self.ln(2)
-        self.set_font("Helvetica", "B", 12)
+        self.ln(4)
+        # Accent bar
+        self.set_fill_color(44, 62, 80)
+        self.rect(10, self.get_y(), 3, 8, "F")
+        self.set_font("Helvetica", "B", 14)
         self.set_text_color(44, 62, 80)
-        self.cell(0, 7, f"{emoji}  {title}" if emoji else title, 0, 1, "L")
-        self.ln(1)
+        self.set_x(16)
+        self.cell(0, 8, f"{emoji}  {title}" if emoji else title, 0, 1, "L")
+        self.ln(2)
 
     def subsection(self, title):
-        self.set_font("Helvetica", "B", 9)
+        self.set_font("Helvetica", "B", 11)
         self.set_text_color(52, 73, 94)
-        self.cell(0, 5, title, 0, 1, "L")
+        self.cell(0, 6, title, 0, 1, "L")
+        self.ln(1)
 
-    def txt(self, text, bold=False, color=None, size=8.5):
+    def txt(self, text, bold=False, color=None, size=10):
         self.set_font("Helvetica", "B" if bold else "", size)
-        self.set_text_color(*(color or (60, 60, 60)))
-        self.multi_cell(0, 4.2, text)
-        self.ln(0.8)
+        self.set_text_color(*(color or (50, 50, 50)))
+        self.multi_cell(0, 5, text)
+        self.ln(1)
+
+    def data_line(self, label, value, unit="", assessment=None):
+        """Print a label: value line with the value in bold + color."""
+        self.set_font("Helvetica", "", 10)
+        self.set_text_color(80, 80, 80)
+        self.cell(self.get_string_width(f"  {label}: ") + 2, 5, f"  {label}: ", 0, 0)
+        # Value in bold + accent color
+        if assessment == "good":
+            val_color = (39, 174, 96)
+        elif assessment == "bad":
+            val_color = (192, 57, 43)
+        elif assessment == "warn":
+            val_color = (243, 156, 18)
+        else:
+            val_color = (44, 62, 80)
+        self.set_font("Helvetica", "B", 10)
+        self.set_text_color(*val_color)
+        self.cell(0, 5, f"{value}{(' ' + unit) if unit else ''}", 0, 1)
+        self.ln(0.5)
 
     def kpi_row(self, kpis, y=None):
         """Draw KPI cards. kpis = [(label, value, bg_color_or_None), ...]"""
@@ -353,36 +379,35 @@ class MatchPDF(FPDF):
                 self.set_fill_color(*bg)
             else:
                 self.set_fill_color(247, 248, 249)
-            self.rect(x, y, w, 18, "F")
+            self.rect(x, y, w, 22, "F")
 
             # Subtle left accent
             if bg:
                 self.set_fill_color(*bg)
             else:
                 self.set_fill_color(44, 62, 80)
-            self.rect(x, y, 2, 18, "F")
+            self.rect(x, y, 2.5, 22, "F")
 
             # Value
-            self.set_font("Helvetica", "B", 13)
+            self.set_font("Helvetica", "B", 15)
             if bg:
                 self.set_text_color(255, 255, 255)
             else:
                 self.set_text_color(44, 62, 80)
             self.set_xy(x + 4, y + 2)
-            # Truncate long values
             val_str = str(value)[:18]
-            self.cell(w - 6, 7, val_str, 0, 0, "C")
+            self.cell(w - 6, 9, val_str, 0, 0, "C")
 
             # Label
-            self.set_font("Helvetica", "", 7)
+            self.set_font("Helvetica", "", 8)
             if bg:
                 self.set_text_color(220, 220, 220)
             else:
                 self.set_text_color(127, 140, 141)
-            self.set_xy(x + 4, y + 10)
+            self.set_xy(x + 4, y + 13)
             self.cell(w - 6, 5, label, 0, 0, "C")
 
-        self.set_y(y + 22)
+        self.set_y(y + 26)
 
     def chart(self, img_path, width=175):
         if img_path is None:
@@ -422,7 +447,7 @@ def generate_match_pdf(match, output_path, player_name=None):
     pdf.add_page()
 
     # Match headline
-    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_font("Helvetica", "B", 16)
     pdf.set_text_color(44, 62, 80)
     if opp:
         pdf.cell(0, 7,
@@ -504,11 +529,10 @@ def generate_match_pdf(match, output_path, player_name=None):
         for era, fld in [("Dark", "tc_idle_dark"), ("Feudal", "tc_idle_feudal"),
                          ("Castle", "tc_idle_castle"), ("Imp", "tc_idle_imperial")]:
             v = p.get(fld, 0) or 0
-            if v > 10:
-                parts.append(f"{era} {fmt(v)}")
-        if parts:
-            total = fmt(p.get("tc_idle_secs", 0))
-            pdf.txt(f"  {p['name']}: {', '.join(parts)}  (Total: {total})")
+            parts.append(f"{era} {fmt(v) if v > 0 else '0:00'}")
+        total = p.get("tc_idle_secs", 0) or 0
+        assess = "good" if total < 300 else "warn" if total < 600 else "bad"
+        pdf.data_line(p["name"], f"{', '.join(parts)}", f"(Total: {fmt(total)})", assessment=assess)
 
     # ═══════════════════════════════════════════════════════════
     # PAGE 2: ECONOMY
@@ -527,18 +551,21 @@ def generate_match_pdf(match, output_path, player_name=None):
         res_eff = match.get("metrics", {}).get(pname, {}).get("resource_collection_efficiency")
 
         pdf.subsection(f"{pname} ({p.get('civ_name', '?')})")
-        pdf.txt(f"  Villagers: {vills}  |  Farms: {farms}  |  Final TCs: {tc_f}")
+        pdf.data_line("Villagers Produced", str(vills))
+        pdf.data_line("Farms Built", str(farms))
+        pdf.data_line("Final TCs", str(tc_f))
         if fg_val is not None:
             q = "excellent" if fg_val < 3 else "good" if fg_val < 6 else "needs work"
-            pdf.txt(f"  Farm Reseeding Gap: {fg_val:.1f}s avg ({q})")
+            assess = "good" if fg_val < 3 else None if fg_val < 6 else "warn"
+            pdf.data_line("Farm Reseeding Gap", f"{fg_val:.1f}s avg ({q})", assessment=assess)
         if est is not None:
-            pdf.txt(f"  Estimated Idle Villager Time: {fmt(est)} (proxy)")
+            pdf.data_line("Est. Idle Villager Time", fmt(est), "(proxy)")
         if res_eff is not None:
-            pdf.txt(f"  Resource Efficiency: {res_eff:.0f} res/villager")
+            pdf.data_line("Resource Efficiency", f"{res_eff:.0f}", "res/villager")
         if mil_idx is not None:
             s = "rush" if mil_idx < 0.7 else "boom" if mil_idx > 1.2 else "balanced"
-            pdf.txt(f"  Military Timing Index: {mil_idx:.2f} ({s})")
-        pdf.ln(2)
+            pdf.data_line("Military Timing Index", f"{mil_idx:.2f} ({s})")
+        pdf.ln(3)
 
     pdf.sep()
 
@@ -602,7 +629,10 @@ def generate_match_pdf(match, output_path, player_name=None):
                         a = assess_timing(td["tech"], td["timestamp_secs"])
                         ind = " [OK]" if a == "Good" else " [LATE]" if a == "Poor" else ""
                         parts.append(f"{td['tech']} {fmt(td['timestamp_secs'])}{ind}")
-                    pdf.txt(f"  {cat}: {', '.join(parts)}")
+                    # Determine overall assessment for category
+                    assessments = [assess_timing(td["tech"], td["timestamp_secs"]) for td in techs[:5]]
+                    cat_assess = "bad" if "Poor" in assessments else "good" if all(a == "Good" for a in assessments) else None
+                    pdf.data_line(cat, ", ".join(parts), assessment=cat_assess)
             pdf.ln(1)
     except ImportError:
         pass
