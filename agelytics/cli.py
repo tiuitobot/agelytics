@@ -115,6 +115,62 @@ def cmd_patterns(args):
     return 0
 
 
+def cmd_pdf(args):
+    """Generate PDF report for a match."""
+    from .pdf_report import generate_match_pdf
+    
+    conn = get_db(args.db)
+    
+    if args.match_id:
+        match = get_match_by_id(conn, args.match_id)
+        if not match:
+            print(f"Match #{args.match_id} not found.", file=sys.stderr)
+            conn.close()
+            return 1
+    else:
+        match = get_last_match(conn)
+        if not match:
+            print("No matches in database. Run 'ingest' first.", file=sys.stderr)
+            conn.close()
+            return 1
+    
+    conn.close()
+    
+    # Generate output filename
+    match_id = match['id']
+    output_dir = args.output or "reports"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    filename = f"match_{match_id}_{match.get('map_name', 'unknown').replace(' ', '_')}.pdf"
+    output_path = os.path.join(output_dir, filename)
+    
+    print(f"Generating PDF report for match #{match_id}...")
+    generate_match_pdf(match, output_path, player_name=args.player)
+    print(f"✅ PDF saved to: {output_path}")
+    
+    return 0
+
+
+def cmd_pdf_stats(args):
+    """Generate PDF stats report for a player."""
+    from .pdf_stats import generate_stats_pdf
+    
+    output_dir = args.output or "reports"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    filename = f"stats_{args.player}.pdf"
+    output_path = os.path.join(output_dir, filename)
+    
+    print(f"Generating stats PDF for {args.player}...")
+    try:
+        generate_stats_pdf(args.player, output_path, db_path=args.db)
+        print(f"✅ PDF saved to: {output_path}")
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="agelytics",
@@ -146,6 +202,17 @@ def main():
     p_patterns = subs.add_parser("patterns", help="Generate and show pattern analysis")
     p_patterns.add_argument("--player", "-p", default="blzulian", help="Player name")
     
+    # pdf
+    p_pdf = subs.add_parser("pdf", help="Generate PDF report for a match")
+    p_pdf.add_argument("match_id", type=int, nargs='?', help="Match ID (omit for latest match)")
+    p_pdf.add_argument("--player", "-p", default=None, help="Player perspective")
+    p_pdf.add_argument("--output", "-o", default="reports", help="Output directory (default: reports/)")
+    
+    # pdf-stats
+    p_pdf_stats = subs.add_parser("pdf-stats", help="Generate PDF stats report for a player")
+    p_pdf_stats.add_argument("player", help="Player name")
+    p_pdf_stats.add_argument("--output", "-o", default="reports", help="Output directory (default: reports/)")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -160,6 +227,10 @@ def main():
         return cmd_stats(args)
     elif args.command == "patterns":
         return cmd_patterns(args)
+    elif args.command == "pdf":
+        return cmd_pdf(args)
+    elif args.command == "pdf-stats":
+        return cmd_pdf_stats(args)
 
 
 if __name__ == "__main__":
