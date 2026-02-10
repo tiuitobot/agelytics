@@ -12,6 +12,8 @@ from mgz.summary import Summary
 
 from .data import civ_name, map_name
 from .metrics import enrich_match_for_metrics, compute_all_metrics
+from .opening import opening_summary
+from .production import production_summary
 
 
 def parse_replay(filepath: str) -> Optional[dict]:
@@ -141,6 +143,27 @@ def parse_replay(filepath: str) -> Optional[dict]:
             metrics_by_player[player_name] = metrics
         
         match_data["metrics"] = metrics_by_player
+        
+        # Detect opening strategies
+        try:
+            openings = opening_summary(match_data)
+            match_data["openings"] = openings
+        except Exception:
+            match_data["openings"] = {}
+        
+        # Store raw inputs for TC idle calculation and production simulation
+        try:
+            if hasattr(s.match, "inputs"):
+                match_data["_raw_inputs"] = s.match.inputs
+        except Exception:
+            pass
+        
+        # Calculate TC idle by era
+        try:
+            tc_idle_by_age = _calculate_tc_idle_by_age(match_data)
+            match_data["tc_idle_by_age"] = tc_idle_by_age
+        except Exception:
+            match_data["tc_idle_by_age"] = {}
         
         return match_data
 
@@ -314,6 +337,129 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
     except Exception:
         # If detailed extraction fails entirely, return empty data
         pass
+    
+    return result
+
+
+def _calculate_tc_idle_by_age(match_data: dict) -> dict:
+    """
+    Break down TC idle time by age (Dark, Feudal, Castle, Imperial).
+    
+    Returns dict mapping player names to dicts with age breakdowns:
+    {player_name: {"Dark": X, "Feudal": Y, "Castle": Z, "Imperial": W}}
+    """
+    result = {}
+    
+    # Get age-up times for each player
+    age_ups = match_data.get("age_ups", [])
+    players = match_data.get("players", [])
+    duration = match_data.get("duration_secs", 0)
+    
+    # Build age timeline for each player
+    player_ages = {}
+    for player in players:
+        pname = player["name"]
+        player_ages[pname] = {
+            "Dark": (0, None),
+            "Feudal": (None, None),
+            "Castle": (None, None),
+            "Imperial": (None, None),
+        }
+    
+    # Fill in age-up times
+    for age_up in age_ups:
+        pname = age_up["player"]
+        age = age_up["age"]
+        timestamp = age_up["timestamp_secs"]
+        
+        if pname not in player_ages:
+            continue
+        
+        if age == "Feudal Age":
+            player_ages[pname]["Dark"] = (0, timestamp)
+            player_ages[pname]["Feudal"] = (timestamp, None)
+        elif age == "Castle Age":
+            feudal_start = player_ages[pname]["Feudal"][0]
+            if feudal_start is not None:
+                player_ages[pname]["Feudal"] = (feudal_start, timestamp)
+            player_ages[pname]["Castle"] = (timestamp, None)
+        elif age == "Imperial Age":
+            castle_start = player_ages[pname]["Castle"][0]
+            if castle_start is not None:
+                player_ages[pname]["Castle"] = (castle_start, timestamp)
+            player_ages[pname]["Imperial"] = (timestamp, duration)
+    
+    # Fill in any remaining None end times with game duration
+    for pname in player_ages:
+        for age in ["Dark", "Feudal", "Castle", "Imperial"]:
+            start, end = player_ages[pname][age]
+            if start is not None and end is None:
+                player_ages[pname][age] = (start, duration)
+    
+    # Now calculate TC idle for each age
+    # We need to get villager queue timestamps from match inputs
+    try:
+        raw_inputs = match_data.get("_raw_inputs")
+        if not raw_inputs:
+            # Fallback: just return empty dicts
+            for pname in [p["name"] for p in players]:
+                result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
+            return result
+        
+        # Collect villager queue timestamps per player
+        vill_queues = defaultdict(list)
+        for inp in raw_inputs:
+            try:
+                if inp.type == "Queue" and hasattr(inp, "payload") and inp.payload:
+                    if inp.payload.get("unit") == "Villager":
+                        pname = inp.player.name if hasattr(inp.player, "name") else None
+                        if pname:
+                            ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
+                            vill_queues[pname].append(ts)
+            except Exception:
+                continue
+        
+        VILL_TRAIN_TIME = 25
+        
+        for pname in [p["name"] for p in players]:
+            times = sorted(vill_queues.get(pname, []))
+            ages = player_ages.get(pname, {})
+            
+            # Initialize result for this player
+            result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
+            
+            # Calculate gaps and assign to ages
+            for i in range(1, len(times)):
+                gap_start = times[i - 1]
+                gap_end = times[i]
+                gap = gap_end - gap_start
+                
+                if gap > 30:  # Idle threshold
+                    idle_time = gap - VILL_TRAIN_TIME
+                    
+                    # Determine which age(s) this gap falls into
+                    for age_name, (age_start, age_end) in ages.items():
+                        if age_start is None or age_end is None:
+                            continue
+                        
+                        # Check overlap
+                        overlap_start = max(gap_start, age_start)
+                        overlap_end = min(gap_end, age_end)
+                        
+                        if overlap_start < overlap_end:
+                            # There's an overlap
+                            overlap_duration = overlap_end - overlap_start
+                            overlap_fraction = overlap_duration / gap
+                            result[pname][age_name] += idle_time * overlap_fraction
+            
+            # Round values
+            for age_name in result[pname]:
+                result[pname][age_name] = round(result[pname][age_name], 1)
+    
+    except Exception:
+        # Fallback: return zeros
+        for pname in [p["name"] for p in players]:
+            result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
     
     return result
 
