@@ -372,7 +372,7 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                 housed_counts[player_name] = housed
             result["housed_count"] = housed_counts
             
-            # Calculate TC idle time per player (v2: batch-aware + research-aware + multi-TC)
+            # Calculate TC idle time per player (v3: queue simulation + research-aware + multi-TC)
             TC_RESEARCH_TIMES = {
                 "Loom": 25, "Feudal Age": 130, "Castle Age": 160,
                 "Imperial Age": 190, "Wheelbarrow": 75, "Hand Cart": 55,
@@ -380,9 +380,10 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
             }
             VILL_TRAIN_TIME = 25
             
-            # Collect vill queue events + TC research periods
+            # Collect all TC-related events per player
             vill_events_tc = defaultdict(list)
-            tc_research_periods_tc = defaultdict(list)
+            tc_research_events = defaultdict(list)  # [(start, end)]
+            tc_build_times = defaultdict(list)
             for inp in match.inputs:
                 try:
                     pname = inp.player.name if hasattr(inp.player, "name") else None
@@ -395,71 +396,54 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                     elif inp.type == "Research" and hasattr(inp, "payload") and inp.payload:
                         tech = inp.payload.get("technology", "")
                         if tech in TC_RESEARCH_TIMES:
-                            tc_research_periods_tc[pname].append((ts, ts + TC_RESEARCH_TIMES[tech]))
-                except Exception:
-                    continue
-            
-            # Build simple TC count timeline from Build events (metrics not available yet)
-            tc_build_times = defaultdict(list)  # {player: [timestamp_secs]}
-            for inp in match.inputs:
-                try:
-                    if inp.type == "Build" and hasattr(inp, "payload") and inp.payload:
+                            tc_research_events[pname].append((ts, TC_RESEARCH_TIMES[tech]))
+                    elif inp.type == "Build" and hasattr(inp, "payload") and inp.payload:
                         if inp.payload.get("building") == "Town Center":
-                            pname = inp.player.name if hasattr(inp.player, "name") else None
-                            if pname:
-                                ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
-                                tc_build_times[pname].append(ts)
+                            tc_build_times[pname].append(ts)
                 except Exception:
                     continue
             
             for pname, times in vill_events_tc.items():
                 times.sort()
-                research_periods = sorted(tc_research_periods_tc.get(pname, []))
-                # Build TC progression: start with 1, +1 for each TC built (+150s build time)
+                
+                # Build TC count timeline
                 tc_timeline = [(0, 1)]
                 for tc_ts in sorted(tc_build_times.get(pname, [])):
                     tc_timeline.append((tc_ts + 150, tc_timeline[-1][1] + 1))
-                tc_progression = tc_timeline
-                
-                # Group queue events within 2s into batches
-                batches = []
-                idx = 0
-                while idx < len(times):
-                    batch_start = times[idx]
-                    count = 1
-                    while idx + 1 < len(times) and times[idx + 1] - batch_start < 2.0:
-                        count += 1
-                        idx += 1
-                    batches.append((batch_start, count))
-                    idx += 1
                 
                 def _tc_count_at(ts):
                     n = 1
-                    if tc_progression:
-                        for tc_ts, tc_n in tc_progression:
-                            if ts >= tc_ts:
-                                n = tc_n
+                    for tc_ts, tc_n in tc_timeline:
+                        if ts >= tc_ts:
+                            n = tc_n
                     return max(n, 1)
                 
+                # Build sorted list of all TC tasks: vill production + researches
+                # Each task: (click_time, duration, type)
+                tasks = [(t, VILL_TRAIN_TIME, "vill") for t in times]
+                for r_ts, r_dur in tc_research_events.get(pname, []):
+                    tasks.append((r_ts, r_dur, "research"))
+                tasks.sort(key=lambda x: x[0])
+                
+                # Simulate TC queue: track when TC becomes free
+                # With multi-TC, distribute across TCs (simplified: single queue, divide by TC count)
+                tc_free_at = 0.0  # when the TC queue finishes
                 total_idle = 0.0
-                for bi in range(1, len(batches)):
-                    prev_ts, prev_count = batches[bi - 1]
-                    curr_ts, _ = batches[bi]
-                    num_tcs = _tc_count_at(prev_ts)
-                    busy_time = (prev_count / num_tcs) * VILL_TRAIN_TIME
-                    gap_start = prev_ts + busy_time
-                    gap_end = curr_ts
-                    gap = gap_end - gap_start
-                    # Subtract TC research overlap
-                    for r_start, r_end in research_periods:
-                        if r_start >= gap_end:
-                            break
-                        o_start = max(gap_start, r_start)
-                        o_end = min(gap_end, r_end)
-                        if o_start < o_end:
-                            gap -= (o_end - o_start)
-                    if gap > 5:
-                        total_idle += gap
+                
+                for click_time, duration, task_type in tasks:
+                    num_tcs = _tc_count_at(click_time)
+                    
+                    if click_time >= tc_free_at:
+                        # TC was idle between tc_free_at and click_time
+                        idle_gap = click_time - tc_free_at
+                        if idle_gap > 5:
+                            total_idle += idle_gap
+                        # Task starts now
+                        tc_free_at = click_time + (duration / num_tcs)
+                    else:
+                        # TC still busy — task queues after current work
+                        tc_free_at += (duration / num_tcs)
+                
                 result["tc_idle"][pname] = round(total_idle, 1)
     
     except Exception:
@@ -524,7 +508,7 @@ def _calculate_tc_idle_by_age(match_data: dict) -> dict:
             if start is not None and end is None:
                 player_ages[pname][age] = (start, duration)
     
-    # Now calculate TC idle for each age (v2: batch-aware + research-aware + multi-TC)
+    # Now calculate TC idle for each age (v3: queue simulation + research-aware + multi-TC)
     TC_RESEARCH_TIMES_BY_AGE = {
         "Loom": 25, "Feudal Age": 130, "Castle Age": 160,
         "Imperial Age": 190, "Wheelbarrow": 75, "Hand Cart": 55,
@@ -539,9 +523,10 @@ def _calculate_tc_idle_by_age(match_data: dict) -> dict:
                 result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
             return result
         
-        # Collect vill queue timestamps + TC research periods
+        # Collect events
         vill_queues = defaultdict(list)
-        tc_research_periods_age = defaultdict(list)
+        tc_research_ev = defaultdict(list)
+        tc_build_ev = defaultdict(list)
         for inp in raw_inputs:
             try:
                 pname = inp.player.name if hasattr(inp.player, "name") else None
@@ -554,68 +539,61 @@ def _calculate_tc_idle_by_age(match_data: dict) -> dict:
                 elif inp.type == "Research" and hasattr(inp, "payload") and inp.payload:
                     tech = inp.payload.get("technology", "")
                     if tech in TC_RESEARCH_TIMES_BY_AGE:
-                        tc_research_periods_age[pname].append((ts, ts + TC_RESEARCH_TIMES_BY_AGE[tech]))
+                        tc_research_ev[pname].append((ts, TC_RESEARCH_TIMES_BY_AGE[tech]))
+                elif inp.type == "Build" and hasattr(inp, "payload") and inp.payload:
+                    if inp.payload.get("building") == "Town Center":
+                        tc_build_ev[pname].append(ts)
             except Exception:
                 continue
-        
-        metrics_data = match_data.get("metrics", {})
         
         for pname in [p["name"] for p in players]:
             times = sorted(vill_queues.get(pname, []))
             ages = player_ages.get(pname, {})
-            research_periods = sorted(tc_research_periods_age.get(pname, []))
-            tc_progression = metrics_data.get(pname, {}).get("tc_count_progression", [(0, 1)])
             
-            result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
-            
-            # Group queue events within 2s into batches
-            batches = []
-            idx = 0
-            while idx < len(times):
-                batch_start = times[idx]
-                count = 1
-                while idx + 1 < len(times) and times[idx + 1] - batch_start < 2.0:
-                    count += 1
-                    idx += 1
-                batches.append((batch_start, count))
-                idx += 1
+            # TC count timeline
+            tc_timeline = [(0, 1)]
+            for tc_ts in sorted(tc_build_ev.get(pname, [])):
+                tc_timeline.append((tc_ts + 150, tc_timeline[-1][1] + 1))
             
             def _tc_count_at_age(ts):
                 n = 1
-                if tc_progression:
-                    for tc_ts, tc_n in tc_progression:
-                        if ts >= tc_ts:
-                            n = tc_n
+                for tc_ts, tc_n in tc_timeline:
+                    if ts >= tc_ts:
+                        n = tc_n
                 return max(n, 1)
             
-            for bi in range(1, len(batches)):
-                prev_ts, prev_count = batches[bi - 1]
-                curr_ts, _ = batches[bi]
-                num_tcs = _tc_count_at_age(prev_ts)
-                busy_time = (prev_count / num_tcs) * VILL_TRAIN_TIME
-                gap_start = prev_ts + busy_time
-                gap_end = curr_ts
+            result[pname] = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
+            
+            # Build task list and simulate queue
+            tasks = [(t, VILL_TRAIN_TIME, "vill") for t in times]
+            for r_ts, r_dur in tc_research_ev.get(pname, []):
+                tasks.append((r_ts, r_dur, "research"))
+            tasks.sort(key=lambda x: x[0])
+            
+            tc_free_at = 0.0
+            idle_gaps = []  # [(start, end)]
+            
+            for click_time, dur, task_type in tasks:
+                num_tcs = _tc_count_at_age(click_time)
+                if click_time >= tc_free_at:
+                    idle_gap = click_time - tc_free_at
+                    if idle_gap > 5:
+                        idle_gaps.append((tc_free_at, click_time))
+                    tc_free_at = click_time + (dur / num_tcs)
+                else:
+                    tc_free_at += (dur / num_tcs)
+            
+            # Distribute idle gaps across ages
+            for gap_start, gap_end in idle_gaps:
                 gap = gap_end - gap_start
-                
-                # Subtract TC research overlap
-                for r_start, r_end in research_periods:
-                    if r_start >= gap_end:
-                        break
-                    o_start = max(gap_start, r_start)
-                    o_end = min(gap_end, r_end)
-                    if o_start < o_end:
-                        gap -= (o_end - o_start)
-                
-                if gap > 5:
-                    # Distribute across ages
-                    for age_name, (age_start, age_end) in ages.items():
-                        if age_start is None or age_end is None:
-                            continue
-                        a_start = max(gap_start, age_start)
-                        a_end = min(gap_end, age_end)
-                        if a_start < a_end:
-                            fraction = (a_end - a_start) / (gap_end - gap_start) if gap_end > gap_start else 0
-                            result[pname][age_name] += gap * fraction
+                for age_name, (age_start, age_end) in ages.items():
+                    if age_start is None or age_end is None:
+                        continue
+                    a_start = max(gap_start, age_start)
+                    a_end = min(gap_end, age_end)
+                    if a_start < a_end:
+                        fraction = (a_end - a_start) / (gap_end - gap_start) if gap_end > gap_start else 0
+                        result[pname][age_name] += gap * fraction
             
             for age_name in result[pname]:
                 result[pname][age_name] = round(result[pname][age_name], 1)
