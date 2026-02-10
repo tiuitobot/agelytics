@@ -279,6 +279,14 @@ def match_report(match: dict, player_name: str = None) -> str:
         lines.append("")
         lines.append("  🏗️ Production Buildings by Age:")
         
+        # Building abbreviations (avoid collisions)
+        building_abbrev = {
+            "Archery Range": "Rng",
+            "Barracks": "Brk",
+            "Stable": "Stb",
+            "Siege Workshop": "Sge",
+        }
+        
         for player in [p["name"] for p in players]:
             player_buildings = prod_buildings.get(player, {})
             if not player_buildings:
@@ -288,7 +296,7 @@ def match_report(match: dict, player_name: str = None) -> str:
             for age in ["Dark", "Feudal", "Castle", "Imperial"]:
                 buildings = player_buildings.get(age, {})
                 if buildings:
-                    building_strs = [f"{count}{b[0]}" for b, count in buildings.items()]  # "2R" = 2 Ranges
+                    building_strs = [f"{count}{building_abbrev.get(b, b[:3])}" for b, count in buildings.items()]
                     age_summaries.append(f"{age}: {' '.join(building_strs)}")
             
             if age_summaries:
