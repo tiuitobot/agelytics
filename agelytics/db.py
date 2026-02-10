@@ -114,6 +114,11 @@ def _migrate(conn: sqlite3.Connection):
         ("match_players", "farm_gap_average", "REAL"),
         ("match_players", "military_timing_index", "REAL"),
         ("match_players", "tc_count_final", "INTEGER"),
+        ("match_players", "opening_strategy", "TEXT"),
+        ("match_players", "tc_idle_dark", "REAL"),
+        ("match_players", "tc_idle_feudal", "REAL"),
+        ("match_players", "tc_idle_castle", "REAL"),
+        ("match_players", "tc_idle_imperial", "REAL"),
     ]
     
     for table, col, col_type in migrations:
@@ -144,6 +149,8 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
         tc_idle_data = match.get("tc_idle", {})
         est_idle_data = match.get("estimated_idle_villager_time", {})
         metrics_data = match.get("metrics", {})
+        openings_data = match.get("openings", {})
+        tc_idle_by_age_data = match.get("tc_idle_by_age", {})
         
         for p in match["players"]:
             player_name = p["name"]
@@ -159,16 +166,29 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
             tc_prog = player_metrics.get("tc_count_progression")
             tc_count_final = tc_prog[-1][1] if tc_prog and len(tc_prog) > 0 else None
             
+            # Opening strategy
+            opening = openings_data.get(player_name)
+            
+            # TC idle by age
+            tc_idle_by_age = tc_idle_by_age_data.get(player_name, {})
+            tc_idle_dark = tc_idle_by_age.get("Dark")
+            tc_idle_feudal = tc_idle_by_age.get("Feudal")
+            tc_idle_castle = tc_idle_by_age.get("Castle")
+            tc_idle_imperial = tc_idle_by_age.get("Imperial")
+            
             conn.execute("""
                 INSERT INTO match_players (match_id, name, number, civ_id, civ_name,
                                            color_id, winner, user_id, elo, eapm, tc_idle_secs,
                                            estimated_idle_vill_time, farm_gap_average,
-                                           military_timing_index, tc_count_final)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           military_timing_index, tc_count_final,
+                                           opening_strategy, tc_idle_dark, tc_idle_feudal,
+                                           tc_idle_castle, tc_idle_imperial)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 match_id, player_name, p["number"], p["civ_id"], p["civ_name"],
                 p["color_id"], 1 if p["winner"] else 0, p["user_id"],
                 p["elo"], p["eapm"], tc_idle, est_idle, farm_gap, mil_timing, tc_count_final,
+                opening, tc_idle_dark, tc_idle_feudal, tc_idle_castle, tc_idle_imperial,
             ))
 
         # Insert detailed data if present

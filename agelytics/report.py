@@ -153,6 +153,15 @@ def match_report(match: dict, player_name: str = None) -> str:
                 p2_str = format_duration(p2_time) if p2_time else "—"
                 lines.append(f"     {label.ljust(12)} {p1_str.ljust(12)} {p2_str.ljust(12)}")
     
+    # Opening strategies
+    openings = match.get("openings", {})
+    if openings:
+        lines.append("")
+        lines.append("  🎯 Opening Strategies:")
+        for player in [p["name"] for p in players]:
+            opening = openings.get(player, "Unknown")
+            lines.append(f"     {player}: {opening}")
+    
     # Army composition
     unit_production = match.get("unit_production", {})
     if unit_production:
@@ -188,7 +197,7 @@ def match_report(match: dict, player_name: str = None) -> str:
             if farms > 0:
                 eco_parts.append(f"{farms} farms")
             
-            # TC idle
+            # TC idle (total)
             p_data = next((p for p in players if p["name"] == player), None)
             tc_idle = p_data.get("tc_idle_secs") if p_data else None
             if tc_idle and tc_idle > 0:
@@ -196,6 +205,17 @@ def match_report(match: dict, player_name: str = None) -> str:
             
             if eco_parts:
                 lines.append(f"     {player}: {', '.join(eco_parts)}")
+            
+            # TC idle by age
+            tc_idle_by_age = match.get("tc_idle_by_age", {}).get(player, {})
+            if tc_idle_by_age and any(v > 0 for v in tc_idle_by_age.values()):
+                age_parts = []
+                for age in ["Dark", "Feudal", "Castle", "Imperial"]:
+                    val = tc_idle_by_age.get(age, 0)
+                    if val > 0:
+                        age_parts.append(f"{age} {format_duration(val)}")
+                if age_parts:
+                    lines.append(f"       TC idle by age: {', '.join(age_parts)}")
         
         # New eco metrics per player
         for player in [p["name"] for p in players]:
