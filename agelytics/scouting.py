@@ -26,18 +26,18 @@ def _elo_trend(matches: list[dict], profile_id: int) -> str:
                 ratings.append(p["new_rating"])
                 break
 
-    if len(ratings) < 3:
+    if len(ratings) < 2:
         return "stable"
 
-    # Compare first third average to last third average
-    third = max(1, len(ratings) // 3)
-    old_avg = sum(ratings[:third]) / third
-    new_avg = sum(ratings[-third:]) / third
-    diff = new_avg - old_avg
+    # Compare oldest rating to most recent
+    # ratings[0] is most recent (matches come newest-first)
+    newest = ratings[0]
+    oldest = ratings[-1]
+    diff = newest - oldest
 
-    if diff > 30:
+    if diff > 20:
         return "rising"
-    elif diff < -30:
+    elif diff < -20:
         return "falling"
     return "stable"
 
@@ -141,7 +141,7 @@ def scout_player(player_name: str) -> dict:
     profile_id = player["profile_id"]
 
     # Get match history
-    matches = get_match_history(profile_id, count=20)
+    matches = get_match_history(profile_id, count=50)
     if not matches:
         # Return partial data
         return {
@@ -151,15 +151,20 @@ def scout_player(player_name: str) -> dict:
             "error": "Could not fetch match history",
         }
 
+    # Filter to 1v1 RM only (matchtype_id 6) for accurate stats
+    rm_matches = [m for m in matches if m.get("matchtype_id") == 6]
+    # Fallback to all matches if no 1v1 RM found
+    analysis_matches = rm_matches if rm_matches else matches
+
     # Compute scouting data
-    trend = _elo_trend(matches, profile_id)
-    top_civs = _top_civs(matches, profile_id)
-    opening = _opening_tendency(matches, profile_id)
-    wr = _win_rate(matches, profile_id)
+    trend = _elo_trend(analysis_matches, profile_id)
+    top_civs = _top_civs(analysis_matches, profile_id)
+    opening = _opening_tendency(analysis_matches, profile_id)
+    wr = _win_rate(analysis_matches, profile_id)
 
     # Get favorite maps
     map_counter = Counter()
-    for m in matches:
+    for m in analysis_matches:
         map_counter[m["map"]] += 1
     top_maps = [{"map": name, "games": count} for name, count in map_counter.most_common(3)]
 
@@ -179,6 +184,6 @@ def scout_player(player_name: str) -> dict:
         "opening_tendency": opening,
         "win_rate": wr,
         "top_maps": top_maps,
-        "recent_matches": len(matches),
+        "recent_matches": len(analysis_matches),
         "streak": player.get("streak", 0),
     }
