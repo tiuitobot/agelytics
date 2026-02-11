@@ -376,6 +376,7 @@ function renderReport(d) {
         Team Games${hasTeam ? ' (' + d.team.match_count + ')' : ''}
       </div>
     </div>
+    <div style="text-align:center;font-size:10px;color:#555;margin:-8px 0 10px;">Based on last ${d.recent_matches || 300} games</div>
 
     <div id="modeContent"></div>
 

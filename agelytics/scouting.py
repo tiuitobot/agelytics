@@ -195,7 +195,7 @@ def scout_player(player_name: str) -> dict:
         "opening_tendency": primary["opening_tendency"],
         "win_rate": primary["win_rate"],
         "top_maps": primary["top_maps"],
-        "recent_matches": primary["match_count"],
+        "recent_matches": len(matches),
         "streak": player.get("streak", 0),
         "solo": solo,
         "team": team,
