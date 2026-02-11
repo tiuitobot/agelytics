@@ -9,7 +9,8 @@
       "importance": "critical",
       "status": "confirmed",
       "date": "2026-02-11",
-      "source": "aoe2insights.com HTML inspection + curl test"
+      "source": "aoe2insights.com HTML inspection + curl test",
+      "context": "Bruno sugeriu olhar AgeAlyser (byrnesy924/AgeAlyser_2) pra download de replays. Não tinha — mas levou ao DE Replays Manager (Dropbox, não MS) → aoe2insights HTML → URL descoberta. Reddit confirmou: replays ficam em servidor Microsoft, link construído com gameId+profileId."
     },
     {
       "id": "K002",
@@ -17,7 +18,8 @@
       "importance": "critical",
       "status": "active",
       "date": "2026-02-10",
-      "source": "API testing"
+      "source": "API testing",
+      "context": "Switchou de WorldsEdge (10 matches, civ names errados) pra aoe2companion (141+ matches, paginado, civ names corretos). aoe2.net morreu."
     },
     {
       "id": "K003",
@@ -121,7 +123,8 @@
       "importance": "critical",
       "status": "planned",
       "date": "2026-02-11",
-      "source": "Bruno + Tiuito design"
+      "source": "Bruno + Tiuito design",
+      "context": "Killer feature que nenhum concorrente tem (Overwolf/Age of Duck fazem só stats agregados). Replay real do oponente = build orders, timings, padrões reais — não estimativas."
     },
     {
       "id": "K016",
@@ -129,7 +132,8 @@
       "importance": "high",
       "status": "planned",
       "date": "2026-02-10",
-      "source": "Bruno idea"
+      "source": "Bruno idea",
+      "context": "Baseline pessoal do oponente como controle natural → impacto causal com confidence scoring. Genuinamente inédito em analytics de RTS."
     },
     {
       "id": "K017",
