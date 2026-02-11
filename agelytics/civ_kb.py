@@ -2,6 +2,11 @@
 
 from typing import Optional
 
+from .data import CIVILIZATIONS
+
+# All civs from the game (for dropdown completeness)
+ALL_CIVS = sorted([name for cid, name in CIVILIZATIONS.items() if cid > 0])
+
 
 # Detailed civ data for the most popular civs
 CIV_DATA: dict[str, dict] = {
@@ -182,5 +187,5 @@ def get_matchup(civ1: str, civ2: str) -> dict:
 
 
 def list_civs() -> list[str]:
-    """Return list of all civs in the knowledge base."""
-    return sorted(CIV_DATA.keys())
+    """Return list of all AoE2 DE civs."""
+    return ALL_CIVS
