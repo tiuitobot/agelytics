@@ -1,8 +1,6 @@
-"""PDF scouting reports for opponent analysis.
+"""Rich PDF scouting reports with small multiples and KPI cards.
 
-Two report types:
-1. Single match report - overview of one 1v1 match
-2. Aggregate scouting report - multi-page analysis across all matches
+Uses pre-computed match statistics to generate comprehensive 4-page opponent analysis.
 """
 
 import os
@@ -18,7 +16,6 @@ import seaborn as sns
 from fpdf import FPDF
 
 from .pdf_style import apply_style, COLORS, get_player_colors
-from .scouting_report import CIV_NAMES, get_civ_name
 
 
 # ─── Helpers ─────────────────────────────────────────────────
@@ -26,7 +23,7 @@ from .scouting_report import CIV_NAMES, get_civ_name
 
 def fmt(seconds):
     """Format seconds as MM:SS."""
-    if seconds is None or seconds == 0:
+    if seconds is None or seconds == 0 or pd.isna(seconds):
         return "--:--"
     m, s = divmod(int(seconds), 60)
     return f"{m}:{s:02d}"
@@ -41,151 +38,74 @@ def _save_fig(fig):
     return path
 
 
-def _get_opponent_player(parsed_match: dict, opponent_profile_id: int = None) -> dict:
-    """Extract opponent player data from parsed match.
-    
-    If opponent_profile_id provided, filter by user_id.
-    Otherwise return first player.
-    """
-    players = parsed_match.get("players", [])
-    if not players:
-        return {}
-    
-    if opponent_profile_id:
-        for p in players:
-            if p.get("user_id") == opponent_profile_id:
-                return p
-    
-    return players[0]
+def safe_mean(values):
+    """Calculate mean, filtering out None/NaN/0."""
+    valid = [v for v in values if v is not None and not pd.isna(v) and v != 0]
+    return sum(valid) / len(valid) if valid else None
 
 
-# ─── Data Aggregation ────────────────────────────────────────
+def safe_avg_seconds(values):
+    """Calculate average for time values in seconds."""
+    avg = safe_mean(values)
+    return fmt(avg) if avg else "--:--"
 
 
-def aggregate_stats(parsed_matches: list[dict], opponent_profile_id: int) -> dict:
-    """Aggregate statistics across all matches for the opponent.
+# ─── Data Filtering & Processing ─────────────────────────────
+
+
+def filter_stats(stats: list[dict]) -> tuple[list[dict], bool]:
+    """Filter stats according to data source rule.
     
     Returns:
-        Dict with aggregated stats:
-        - total_matches: int
-        - wins: int
-        - losses: int
-        - win_rate: float
-        - civ_stats: {civ_id: {games, wins, losses, win_rate}}
-        - map_stats: {map_name: count}
-        - ratings: [(match_idx, rating), ...]
-        - game_types: {type: count}
-        - avg_rating: float
-        - rating_trend: str ("up", "down", "stable")
-        - favorite_civ: (civ_id, games_played)
+        (filtered_stats, tg_warning_flag)
     """
-    total_matches = len(parsed_matches)
-    wins = 0
-    losses = 0
-    civ_counter = Counter()
-    civ_wins = defaultdict(int)
-    civ_losses = defaultdict(int)
-    map_counter = Counter()
-    game_type_counter = Counter()
-    ratings = []
+    stats_1v1 = [s for s in stats if s.get("diplomacy") == "1v1"]
     
-    for idx, match in enumerate(parsed_matches):
-        opponent = _get_opponent_player(match, opponent_profile_id)
-        
-        if not opponent:
-            continue
-        
-        # Win/loss
-        if opponent.get("winner"):
-            wins += 1
-            civ_wins[opponent["civ"]] += 1
-        else:
-            losses += 1
-            civ_losses[opponent["civ"]] += 1
-        
-        # Civ frequency
-        civ_counter[opponent["civ"]] += 1
-        
-        # Map frequency
-        map_counter[match.get("map_name", "Unknown")] += 1
-        
-        # Game type
-        game_type_counter[match.get("game_type", "Unknown")] += 1
-        
-        # Rating
-        if opponent.get("rating"):
-            ratings.append((idx, opponent["rating"]))
+    if len(stats_1v1) >= 5:
+        return stats_1v1, False
+    else:
+        return stats, True
+
+
+# ─── KPI Card Drawing ────────────────────────────────────────
+
+
+def draw_kpi_card(pdf, x, y, w, h, label, value, color_rgb):
+    """Draw a colored KPI card with big number."""
+    # Draw colored box
+    pdf.set_fill_color(*color_rgb)
+    pdf.rect(x, y, w, h, 'F')
     
-    # Calculate win rate
-    win_rate = (wins / total_matches * 100) if total_matches > 0 else 0
+    # Draw white number
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("DejaVu", "B", 16)
+    pdf.set_xy(x, y + h/2 - 5)
+    pdf.cell(w, 6, str(value), align='C')
     
-    # Build civ stats
-    civ_stats = {}
-    for civ_id, games in civ_counter.items():
-        civ_wins_count = civ_wins.get(civ_id, 0)
-        civ_losses_count = civ_losses.get(civ_id, 0)
-        civ_wr = (civ_wins_count / games * 100) if games > 0 else 0
-        
-        civ_stats[civ_id] = {
-            "games": games,
-            "wins": civ_wins_count,
-            "losses": civ_losses_count,
-            "win_rate": civ_wr,
-        }
-    
-    # Average rating
-    avg_rating = int(sum(r for _, r in ratings) / len(ratings)) if ratings else 0
-    
-    # Rating trend (compare first half vs second half)
-    rating_trend = "stable"
-    if len(ratings) >= 4:
-        mid = len(ratings) // 2
-        first_half_avg = sum(r for _, r in ratings[:mid]) / mid
-        second_half_avg = sum(r for _, r in ratings[mid:]) / (len(ratings) - mid)
-        diff = second_half_avg - first_half_avg
-        
-        if diff > 30:
-            rating_trend = "up"
-        elif diff < -30:
-            rating_trend = "down"
-    
-    # Favorite civ
-    favorite_civ = civ_counter.most_common(1)[0] if civ_counter else (0, 0)
-    
-    return {
-        "total_matches": total_matches,
-        "wins": wins,
-        "losses": losses,
-        "win_rate": win_rate,
-        "civ_stats": civ_stats,
-        "map_stats": dict(map_counter),
-        "ratings": ratings,
-        "game_types": dict(game_type_counter),
-        "avg_rating": avg_rating,
-        "rating_trend": rating_trend,
-        "favorite_civ": favorite_civ,
-    }
+    # Draw label below
+    pdf.set_text_color(44, 62, 80)
+    pdf.set_font("DejaVu", "", 8)
+    pdf.set_xy(x, y + h + 1)
+    pdf.cell(w, 4, label, align='C')
 
 
 # ─── Chart Generators ────────────────────────────────────────
 
 
-def chart_civ_distribution_pie(civ_stats: dict):
+def chart_civ_pie(stats: list[dict]):
     """Pie chart: civ distribution."""
     apply_style()
     
-    if not civ_stats:
+    civ_counts = Counter(s["civ"] for s in stats if s.get("civ"))
+    
+    if not civ_counts:
         return None
     
-    # Sort by games played
-    sorted_civs = sorted(civ_stats.items(), key=lambda x: x[1]["games"], reverse=True)
-    
-    labels = [get_civ_name(civ_id) for civ_id, _ in sorted_civs]
-    sizes = [stats["games"] for _, stats in sorted_civs]
+    labels = list(civ_counts.keys())
+    sizes = list(civ_counts.values())
     
     fig, ax = plt.subplots(figsize=(6, 4))
     
-    # Use a nice color palette
     colors_palette = sns.color_palette("Set2", len(labels))
     
     wedges, texts, autotexts = ax.pie(
@@ -197,7 +117,6 @@ def chart_civ_distribution_pie(civ_stats: dict):
         textprops={'fontsize': 9, 'color': COLORS["text_primary"]}
     )
     
-    # Make percentage text bold
     for autotext in autotexts:
         autotext.set_color('white')
         autotext.set_fontweight('bold')
@@ -209,533 +128,584 @@ def chart_civ_distribution_pie(civ_stats: dict):
     return _save_fig(fig)
 
 
-def chart_civ_frequency_bars(civ_stats: dict):
-    """Horizontal bar chart: civs played (frequency) with win rate color coding."""
+def chart_performance_grid(stats: list[dict]):
+    """2x2 grid: age-ups, TC idle, eAPM, duration."""
     apply_style()
     
-    if not civ_stats:
-        return None
+    fig, axes = plt.subplots(2, 2, figsize=(10, 7))
     
-    # Build dataframe
-    rows = []
-    for civ_id, stats in civ_stats.items():
-        rows.append({
-            "Civilization": get_civ_name(civ_id),
-            "Games": stats["games"],
-            "Win Rate": stats["win_rate"],
-        })
+    # Top-left: Age-up times
+    ax = axes[0, 0]
     
-    df = pd.DataFrame(rows)
-    df = df.sort_values("Games", ascending=True)  # Ascending for horizontal bars
+    indices = list(range(len(stats)))
+    feudal_times = [s.get("feudal") for s in stats]
+    castle_times = [s.get("castle") for s in stats]
+    imperial_times = [s.get("imperial") for s in stats]
     
-    fig, ax = plt.subplots(figsize=(7, max(4, len(df) * 0.35)))
+    # Plot lines with trend
+    for times, label, color in [
+        (feudal_times, "Feudal", "blue"),
+        (castle_times, "Castle", "orange"),
+        (imperial_times, "Imperial", "green")
+    ]:
+        valid_idx = [i for i, t in enumerate(times) if t is not None and t != 0]
+        valid_times = [times[i] for i in valid_idx]
+        
+        if valid_times:
+            ax.scatter(valid_idx, valid_times, alpha=0.6, s=30, label=label, color=color)
+            
+            # Trend line
+            if len(valid_times) >= 2:
+                z = np.polyfit(valid_idx, valid_times, 1)
+                p = np.poly1d(z)
+                ax.plot(valid_idx, p(valid_idx), "--", alpha=0.5, color=color, linewidth=1)
     
-    # Color bars by win rate (green > 50%, red < 50%, gray = 50%)
-    def get_bar_color(wr):
-        if wr > 50:
-            return COLORS["victory"]
-        elif wr < 50:
-            return COLORS["defeat"]
-        else:
-            return COLORS["text_secondary"]
+    ax.set_xlabel("Match Index")
+    ax.set_ylabel("Time (seconds)")
+    ax.set_title("Age-up Times\n(Faster ↓ is better)", fontsize=10, fontweight='bold')
+    ax.legend(loc='best', fontsize=7)
+    ax.grid(axis='y', alpha=0.3)
+    ax.invert_yaxis()  # Faster at bottom
     
-    colors = [get_bar_color(wr) for wr in df["Win Rate"]]
+    # Top-right: TC idle per match
+    ax = axes[0, 1]
     
-    bars = ax.barh(df["Civilization"], df["Games"], color=colors, edgecolor="white", linewidth=0.5)
+    tc_idle = [s.get("tc_idle", 0) for s in stats]
+    winners = [s.get("winner", False) for s in stats]
+    colors = [COLORS["victory"] if w else COLORS["defeat"] for w in winners]
     
-    # Add win rate labels on bars
-    for i, (games, wr) in enumerate(zip(df["Games"], df["Win Rate"])):
-        ax.text(games + 0.15, i, f'{wr:.0f}%', 
-                va='center', fontsize=8, color=COLORS["text_secondary"])
+    bars = ax.bar(indices, tc_idle, color=colors, edgecolor='white', linewidth=0.5)
+    ax.set_xlabel("Match Index")
+    ax.set_ylabel("TC Idle (seconds)")
+    ax.set_title("TC Idle Time per Match", fontsize=10, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
     
-    ax.set_xlabel("Games Played", fontsize=10, fontweight='bold')
-    ax.set_title("Civilization Frequency & Win Rate", fontsize=12, fontweight='bold', pad=10)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    # Bottom-left: eAPM per match with rolling average
+    ax = axes[1, 0]
     
+    eapm = [s.get("eapm", 0) for s in stats]
+    
+    ax.plot(indices, eapm, marker='o', markersize=3, linewidth=1, 
+            color=COLORS["accent_orange"], alpha=0.6, label="eAPM")
+    
+    # Rolling average
+    if len(eapm) >= 5:
+        rolling = pd.Series(eapm).rolling(window=5, min_periods=1).mean()
+        ax.plot(indices, rolling, linewidth=2, color=COLORS["text_primary"], 
+                label="Rolling Avg (5)")
+    
+    ax.set_xlabel("Match Index")
+    ax.set_ylabel("eAPM")
+    ax.set_title("eAPM per Match", fontsize=10, fontweight='bold')
+    ax.legend(loc='best', fontsize=7)
+    ax.grid(axis='y', alpha=0.3)
+    
+    # Bottom-right: Game duration per match
+    ax = axes[1, 1]
+    
+    durations = [s.get("duration", 0) / 60 for s in stats]  # Convert to minutes
+    
+    bars = ax.bar(indices, durations, color=colors, edgecolor='white', linewidth=0.5)
+    ax.set_xlabel("Match Index")
+    ax.set_ylabel("Duration (minutes)")
+    ax.set_title("Game Duration per Match", fontsize=10, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
+    
+    plt.tight_layout()
     return _save_fig(fig)
 
 
-def chart_map_frequency(map_stats: dict):
-    """Bar chart: map frequency."""
+def chart_army_strategy_grid(stats: list[dict]):
+    """2x2 grid: civ WR, openings, map WR, unit heatmap."""
     apply_style()
     
-    if not map_stats:
-        return None
+    fig, axes = plt.subplots(2, 2, figsize=(10, 7))
     
-    # Sort by frequency
-    sorted_maps = sorted(map_stats.items(), key=lambda x: x[1], reverse=True)
+    # Top-left: Civ win rate
+    ax = axes[0, 0]
     
-    # Take top 10 maps
-    sorted_maps = sorted_maps[:10]
+    civ_data = defaultdict(lambda: {"wins": 0, "total": 0})
     
-    map_names = [name for name, _ in sorted_maps]
-    counts = [count for _, count in sorted_maps]
+    for s in stats:
+        civ = s.get("civ")
+        if not civ:
+            continue
+        civ_data[civ]["total"] += 1
+        if s.get("winner"):
+            civ_data[civ]["wins"] += 1
     
-    fig, ax = plt.subplots(figsize=(7, max(3.5, len(map_names) * 0.3)))
+    civ_wr = {civ: (data["wins"] / data["total"] * 100) if data["total"] > 0 else 0 
+              for civ, data in civ_data.items()}
     
-    bars = ax.barh(map_names, counts, color=COLORS["accent_orange"], 
-                   edgecolor="white", linewidth=0.5)
+    sorted_civs = sorted(civ_wr.items(), key=lambda x: x[1], reverse=False)  # Ascending for horizontal
     
-    # Add count labels
-    for i, count in enumerate(counts):
-        ax.text(count + 0.1, i, str(count), 
-                va='center', fontsize=8, color=COLORS["text_secondary"])
+    civs = [c[0] for c in sorted_civs]
+    wrs = [c[1] for c in sorted_civs]
+    colors_civ = [COLORS["victory"] if wr > 50 else COLORS["defeat"] for wr in wrs]
     
-    ax.set_xlabel("Games Played", fontsize=10, fontweight='bold')
-    ax.set_title("Map Distribution", fontsize=12, fontweight='bold', pad=10)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    ax.barh(civs, wrs, color=colors_civ, edgecolor='white', linewidth=0.5)
+    ax.set_xlabel("Win Rate (%)")
+    ax.set_title("Civilization Win Rate", fontsize=10, fontweight='bold')
+    ax.grid(axis='x', alpha=0.3)
     
+    # Top-right: Opening tendencies
+    ax = axes[0, 1]
+    
+    openings = [s.get("opening") for s in stats if s.get("opening") and s.get("opening") != "Unknown"]
+    opening_counts = Counter(openings)
+    
+    if opening_counts:
+        sorted_openings = sorted(opening_counts.items(), key=lambda x: x[1], reverse=False)
+        
+        op_names = [o[0][:20] for o in sorted_openings]  # Truncate long names
+        op_counts = [o[1] for o in sorted_openings]
+        
+        ax.barh(op_names, op_counts, color=COLORS["accent_orange"], 
+                edgecolor='white', linewidth=0.5)
+        ax.set_xlabel("Count")
+        ax.set_title("Opening Strategies", fontsize=10, fontweight='bold')
+        ax.grid(axis='x', alpha=0.3)
+    else:
+        ax.text(0.5, 0.5, "No opening data", ha='center', va='center', 
+                transform=ax.transAxes, fontsize=9, color=COLORS["text_secondary"])
+        ax.set_xticks([])
+        ax.set_yticks([])
+    
+    # Bottom-left: Map win rate
+    ax = axes[1, 0]
+    
+    map_data = defaultdict(lambda: {"wins": 0, "total": 0})
+    
+    for s in stats:
+        map_name = s.get("map", "Unknown")
+        map_data[map_name]["total"] += 1
+        if s.get("winner"):
+            map_data[map_name]["wins"] += 1
+    
+    map_wr = {map_name: (data["wins"] / data["total"] * 100) if data["total"] > 0 else 0 
+              for map_name, data in map_data.items()}
+    
+    sorted_maps = sorted(map_wr.items(), key=lambda x: x[1], reverse=False)
+    
+    maps = [m[0][:15] for m in sorted_maps]  # Truncate map names
+    map_wrs = [m[1] for m in sorted_maps]
+    colors_map = [COLORS["victory"] if wr > 50 else COLORS["defeat"] for wr in map_wrs]
+    
+    ax.barh(maps, map_wrs, color=colors_map, edgecolor='white', linewidth=0.5)
+    ax.set_xlabel("Win Rate (%)")
+    ax.set_title("Map Win Rate", fontsize=10, fontweight='bold')
+    ax.grid(axis='x', alpha=0.3)
+    
+    # Bottom-right: Unit composition heatmap (top 5 units, last 10 matches)
+    ax = axes[1, 1]
+    
+    # Collect all units (excluding Villager)
+    unit_totals = Counter()
+    
+    for s in stats:
+        units = s.get("units", {})
+        for unit, count in units.items():
+            if unit != "Villager":
+                unit_totals[unit] += count
+    
+    # Top 5 units
+    top_units = [u[0] for u in unit_totals.most_common(5)]
+    
+    if top_units and len(stats) > 0:
+        # Last 10 matches
+        recent_stats = stats[-10:]
+        
+        # Build matrix
+        matrix = []
+        for unit in top_units:
+            row = [s.get("units", {}).get(unit, 0) for s in recent_stats]
+            matrix.append(row)
+        
+        # Plot heatmap
+        sns.heatmap(matrix, ax=ax, cmap="YlOrRd", annot=True, fmt='g', 
+                    cbar_kws={'label': 'Count'}, linewidths=0.5,
+                    yticklabels=[u[:10] for u in top_units],
+                    xticklabels=[f"M{i+1}" for i in range(len(recent_stats))],
+                    annot_kws={'fontsize': 7})
+        
+        ax.set_title("Unit Composition (Last 10)", fontsize=10, fontweight='bold')
+        ax.set_xlabel("Match")
+        ax.set_ylabel("Unit Type")
+    else:
+        ax.text(0.5, 0.5, "No unit data", ha='center', va='center', 
+                transform=ax.transAxes, fontsize=9, color=COLORS["text_secondary"])
+        ax.set_xticks([])
+        ax.set_yticks([])
+    
+    plt.tight_layout()
     return _save_fig(fig)
 
 
-def chart_rating_evolution(ratings: list):
-    """Line chart: rating evolution over matches."""
+def chart_elo_evolution(stats: list[dict]):
+    """Full-width ELO evolution with trend line."""
     apply_style()
     
-    if not ratings or len(ratings) < 2:
+    elos = [s.get("elo") for s in stats if s.get("elo")]
+    
+    if len(elos) < 2:
         return None
     
-    fig, ax = plt.subplots(figsize=(7, 3.5))
+    fig, ax = plt.subplots(figsize=(8, 3.5))
     
-    indices = [idx for idx, _ in ratings]
-    rating_values = [rating for _, rating in ratings]
+    indices = list(range(len(elos)))
     
-    # Plot line
-    ax.plot(indices, rating_values, marker='o', markersize=4, 
-            linewidth=2, color=COLORS["accent_orange"], label="Rating")
+    ax.plot(indices, elos, marker='o', markersize=5, linewidth=2, 
+            color=COLORS["accent_orange"], label="ELO")
     
-    # Add trend line
-    if len(ratings) >= 3:
-        z = np.polyfit(indices, rating_values, 1)
-        p = np.poly1d(z)
-        ax.plot(indices, p(indices), "--", linewidth=1.5, 
-                color=COLORS["text_secondary"], alpha=0.7, label="Trend")
+    # Trend line
+    z = np.polyfit(indices, elos, 1)
+    p = np.poly1d(z)
+    ax.plot(indices, p(indices), "--", linewidth=2, 
+            color=COLORS["text_secondary"], alpha=0.7, label="Trend")
     
-    ax.set_xlabel("Match Number (Recent → Older)", fontsize=10, fontweight='bold')
-    ax.set_ylabel("Rating", fontsize=10, fontweight='bold')
-    ax.set_title("Rating Evolution", fontsize=12, fontweight='bold', pad=10)
+    ax.set_xlabel("Match Index", fontsize=10, fontweight='bold')
+    ax.set_ylabel("ELO Rating", fontsize=10, fontweight='bold')
+    ax.set_title("ELO Evolution", fontsize=12, fontweight='bold', pad=10)
     ax.legend(loc='best', frameon=False)
     ax.grid(axis='y', alpha=0.3)
     
+    plt.tight_layout()
     return _save_fig(fig)
 
 
-# ─── PDF Generation ──────────────────────────────────────────
+# ─── Main PDF Generator ──────────────────────────────────────
 
 
-def generate_match_pdf(parsed_match: dict, opponent_name: str, output_path: str) -> str:
-    """Generate PDF for a single 1v1 match from parsed replay data.
+def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_path: str) -> str:
+    """Generate rich multi-page scouting PDF with small multiples.
     
     Args:
-        parsed_match: Parsed replay dict from replay_parser
-        opponent_name: Name of the opponent
-        output_path: Path to save PDF
-        
-    Returns:
-        Path to generated PDF
-    """
-    # Only generate for 1v1 matches
-    if parsed_match.get("game_type") != "1v1":
-        raise ValueError(f"Only 1v1 matches supported, got: {parsed_match.get('game_type')}")
-    
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(False)
-    
-    # Add Unicode font support
-    pdf.add_font("DejaVu", "", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", uni=True)
-    pdf.add_font("DejaVu", "B", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", uni=True)
-    pdf.add_font("DejaVu", "I", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf", uni=True)
-    
-    # Header
-    pdf.set_font("DejaVu", "B", 18)
-    pdf.set_text_color(44, 62, 80)  # COLORS["text_primary"]
-    pdf.cell(0, 12, f"MATCH REPORT: {opponent_name}", ln=True, align="C")
-    
-    pdf.set_font("DejaVu", "", 10)
-    pdf.set_text_color(127, 140, 141)  # COLORS["text_secondary"]
-    pdf.cell(0, 6, f"Match ID: {parsed_match.get('match_id', 'Unknown')}", ln=True, align="C")
-    
-    pdf.ln(8)
-    
-    # Match overview box
-    pdf.set_font("DejaVu", "B", 11)
-    pdf.set_text_color(44, 62, 80)
-    pdf.cell(0, 8, "Match Overview", ln=True)
-    
-    pdf.set_font("DejaVu", "", 10)
-    pdf.set_text_color(127, 140, 141)
-    
-    # Map and duration
-    map_name = parsed_match.get("map_name", "Unknown")
-    duration = fmt(parsed_match.get("duration_secs", 0))
-    completed = "Yes" if parsed_match.get("completed") else "No"
-    
-    pdf.cell(0, 6, f"Map: {map_name}", ln=True)
-    pdf.cell(0, 6, f"Duration: {duration}", ln=True)
-    pdf.cell(0, 6, f"Completed: {completed}", ln=True)
-    
-    pdf.ln(6)
-    
-    # Players
-    pdf.set_font("DejaVu", "B", 11)
-    pdf.set_text_color(44, 62, 80)
-    pdf.cell(0, 8, "Players", ln=True)
-    
-    players = parsed_match.get("players", [])
-    
-    for i, player in enumerate(players):
-        pdf.set_font("DejaVu", "B", 10)
-        
-        # Winner gets green, loser gets red
-        if player.get("winner"):
-            pdf.set_text_color(39, 174, 96)  # COLORS["victory"]
-            status = "WINNER"
-        else:
-            pdf.set_text_color(231, 76, 60)  # COLORS["defeat"]
-            status = "LOSER"
-        
-        player_name = player.get("name", "Unknown")
-        civ_name = get_civ_name(player.get("civ", 0))
-        rating = player.get("rating")
-        rating_str = f" ({rating} ELO)" if rating else ""
-        
-        pdf.cell(0, 6, f"{status}: {player_name}{rating_str}", ln=True)
-        
-        pdf.set_font("DejaVu", "", 9)
-        pdf.set_text_color(127, 140, 141)
-        pdf.cell(0, 5, f"   Civilization: {civ_name}", ln=True)
-        
-        pdf.ln(2)
-    
-    # Footer
-    pdf.set_y(-30)
-    pdf.set_font("DejaVu", "I", 8)
-    pdf.set_text_color(189, 195, 199)
-    pdf.cell(0, 6, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align="C")
-    pdf.cell(0, 6, "Agelytics - Age of Empires II Analytics", ln=True, align="C")
-    
-    pdf.output(output_path)
-    return output_path
-
-
-def generate_scouting_pdf(parsed_matches: list[dict], opponent_name: str, 
-                           opponent_profile_id: int, output_path: str) -> str:
-    """Generate aggregate scouting PDF from multiple parsed replays.
+        stats: List of per-match stat dicts (pre-computed)
+        opponent_name: Name to display
+        output_path: Where to save PDF
     
     Data source rule:
-    - If 1v1 sample >= 5: use only 1v1
-    - If 1v1 sample < 5: use all ranked + tag warning
-    
-    Args:
-        parsed_matches: List of parsed replay dicts
-        opponent_name: Name of the opponent
-        opponent_profile_id: Profile ID of the opponent
-        output_path: Path to save PDF
-        
-    Returns:
-        Path to generated PDF
+    - Count how many have diplomacy=="1v1"
+    - If >=5: use only those
+    - If <5: use all, add warning tag
     """
-    # Data source filtering
-    matches_1v1 = [m for m in parsed_matches if m.get("game_type") == "1v1"]
+    # Filter stats
+    filtered_stats, tg_warning = filter_stats(stats)
     
-    if len(matches_1v1) >= 5:
-        data_source = "1v1 only"
-        matches_to_use = matches_1v1
-        include_tg_warning = False
+    if not filtered_stats:
+        raise ValueError("No stats to analyze")
+    
+    n_matches = len(filtered_stats)
+    
+    # Compute KPIs
+    wins = sum(1 for s in filtered_stats if s.get("winner"))
+    losses = n_matches - wins
+    win_rate = (wins / n_matches * 100) if n_matches > 0 else 0
+    
+    # Feudal time average
+    feudal_times = [s.get("feudal") for s in filtered_stats if s.get("feudal") and s.get("feudal") != 0]
+    avg_feudal = safe_avg_seconds(feudal_times)
+    
+    # eAPM average
+    eapms = [s.get("eapm") for s in filtered_stats if s.get("eapm") and s.get("eapm") != 0]
+    avg_eapm = int(safe_mean(eapms)) if eapms else 0
+    
+    # Favorite civ
+    civ_counts = Counter(s["civ"] for s in filtered_stats if s.get("civ"))
+    favorite_civ = civ_counts.most_common(1)[0] if civ_counts else ("Unknown", 0)
+    fav_civ_name = favorite_civ[0]
+    fav_civ_pct = (favorite_civ[1] / n_matches * 100) if n_matches > 0 else 0
+    
+    # TC Idle average
+    tc_idles = [s.get("tc_idle") for s in filtered_stats if s.get("tc_idle") is not None]
+    avg_tc_idle = round(safe_mean(tc_idles)) if tc_idles else 0
+    
+    # Game duration average
+    durations = [s.get("duration") for s in filtered_stats if s.get("duration") and s.get("duration") != 0]
+    avg_duration = safe_avg_seconds(durations)
+    avg_duration_min = safe_mean(durations) / 60 if durations else 0
+    
+    # Recent form (last 5)
+    recent_results = [s.get("winner", False) for s in filtered_stats[-5:]]
+    
+    # ELO trend
+    elos = [s.get("elo") for s in filtered_stats if s.get("elo")]
+    current_elo = elos[-1] if elos else 0
+    
+    if len(elos) >= 2:
+        elo_delta = elos[-1] - elos[0]
+        if elo_delta > 20:
+            elo_trend = "▲"
+            elo_trend_text = f"▲ +{elo_delta}"
+        elif elo_delta < -20:
+            elo_trend = "▼"
+            elo_trend_text = f"▼ {elo_delta}"
+        else:
+            elo_trend = "→"
+            elo_trend_text = "→ Stable"
     else:
-        data_source = "All ranked matches (includes TG)"
-        matches_to_use = parsed_matches
-        include_tg_warning = True
-    
-    if not matches_to_use:
-        raise ValueError("No matches to analyze")
-    
-    # Aggregate stats
-    stats = aggregate_stats(matches_to_use, opponent_profile_id)
+        elo_trend_text = "--"
     
     # Generate charts
-    chart_paths = {}
-    
-    chart_paths["civ_pie"] = chart_civ_distribution_pie(stats["civ_stats"])
-    chart_paths["civ_bars"] = chart_civ_frequency_bars(stats["civ_stats"])
-    chart_paths["map_freq"] = chart_map_frequency(stats["map_stats"])
-    chart_paths["rating_evo"] = chart_rating_evolution(stats["ratings"])
+    chart_civ_pie_path = chart_civ_pie(filtered_stats)
+    chart_perf_grid_path = chart_performance_grid(filtered_stats)
+    chart_army_grid_path = chart_army_strategy_grid(filtered_stats)
+    chart_elo_path = chart_elo_evolution(filtered_stats)
     
     # Create PDF
     pdf = FPDF()
     pdf.set_auto_page_break(False)
     
-    # Add Unicode font support
+    # Add Unicode font
     pdf.add_font("DejaVu", "", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", uni=True)
     pdf.add_font("DejaVu", "B", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", uni=True)
-    pdf.add_font("DejaVu", "I", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf", uni=True)
     
     # ─── Page 1: Overview Dashboard ─────────────────────────
     
     pdf.add_page()
     
-    # Header
+    # Title
     pdf.set_font("DejaVu", "B", 20)
     pdf.set_text_color(44, 62, 80)
     pdf.cell(0, 14, f"SCOUTING REPORT: {opponent_name}", ln=True, align="C")
     
+    # Subtitle
     pdf.set_font("DejaVu", "", 10)
     pdf.set_text_color(127, 140, 141)
-    pdf.cell(0, 6, f"Profile ID: {opponent_profile_id} | Total Matches: {stats['total_matches']}", 
-             ln=True, align="C")
+    subtitle = f"{n_matches} matches analyzed | ELO: {current_elo}"
+    if tg_warning:
+        subtitle += " ⚠️ Includes TG data"
+    pdf.cell(0, 6, subtitle, ln=True, align="C")
     
-    # Data source tag
-    if include_tg_warning:
-        pdf.set_font("DejaVu", "B", 9)
-        pdf.set_text_color(243, 156, 18)  # COLORS["warning"]
-        pdf.cell(0, 6, "WARNING: Includes TG data (insufficient 1v1 sample)", ln=True, align="C")
+    pdf.ln(10)
     
-    pdf.ln(8)
+    # KPI cards row 1
+    card_w = 45
+    card_h = 15
+    spacing = 5
+    start_x = 10
+    y_pos = pdf.get_y()
     
-    # KPI boxes
-    pdf.set_font("DejaVu", "B", 10)
+    # Win Rate
+    wr_color = (39, 174, 96) if win_rate >= 50 else (231, 76, 60)
+    draw_kpi_card(pdf, start_x, y_pos, card_w, card_h, "Win Rate", f"{win_rate:.0f}%", wr_color)
+    
+    # Avg Feudal Time
+    draw_kpi_card(pdf, start_x + card_w + spacing, y_pos, card_w, card_h, 
+                  "Avg Feudal", avg_feudal, (41, 128, 185))
+    
+    # Avg eAPM
+    draw_kpi_card(pdf, start_x + 2*(card_w + spacing), y_pos, card_w, card_h, 
+                  "Avg eAPM", avg_eapm if avg_eapm else "--", (155, 89, 182))
+    
+    # Favorite Civ
+    fav_text = f"{fav_civ_name[:8]} {fav_civ_pct:.0f}%"
+    draw_kpi_card(pdf, start_x + 3*(card_w + spacing), y_pos, card_w, card_h, 
+                  "Favorite Civ", fav_text, (230, 126, 34))
+    
+    pdf.ln(card_h + 10)
+    
+    # KPI cards row 2
+    y_pos = pdf.get_y()
+    
+    # Avg TC Idle
+    draw_kpi_card(pdf, start_x, y_pos, card_w, card_h, 
+                  "Avg TC Idle", f"{avg_tc_idle}s" if avg_tc_idle else "--", (52, 152, 219))
+    
+    # Avg Duration
+    draw_kpi_card(pdf, start_x + card_w + spacing, y_pos, card_w, card_h, 
+                  "Avg Duration", avg_duration, (46, 204, 113))
+    
+    # Recent Form (last 5: W/L dots)
+    pdf.set_xy(start_x + 2*(card_w + spacing), y_pos)
+    pdf.set_fill_color(189, 195, 199)
+    pdf.rect(start_x + 2*(card_w + spacing), y_pos, card_w, card_h, 'F')
+    
+    # Draw dots
+    dot_start_x = start_x + 2*(card_w + spacing) + 5
+    dot_y = y_pos + card_h/2 - 1.5
+    for i, win in enumerate(recent_results):
+        color = (39, 174, 96) if win else (231, 76, 60)
+        pdf.set_fill_color(*color)
+        pdf.circle(dot_start_x + i*7, dot_y, 1.5, 'F')
+    
     pdf.set_text_color(44, 62, 80)
-    
-    # Row 1: Win Rate, Matches Played
-    pdf.cell(95, 8, "Win Rate", border=1, align="C")
-    pdf.cell(95, 8, "Matches Played", border=1, align="C", ln=True)
-    
-    pdf.set_font("DejaVu", "", 18)
-    pdf.set_text_color(39, 174, 96) if stats["win_rate"] >= 50 else pdf.set_text_color(231, 76, 60)
-    pdf.cell(95, 12, f"{stats['win_rate']:.1f}%", border=1, align="C")
-    
-    pdf.set_text_color(44, 62, 80)
-    pdf.cell(95, 12, f"{stats['total_matches']}", border=1, align="C", ln=True)
-    
-    pdf.ln(4)
-    
-    # Row 2: Favorite Civ, Rating Trend
-    pdf.set_font("DejaVu", "B", 10)
-    pdf.cell(95, 8, "Favorite Civilization", border=1, align="C")
-    pdf.cell(95, 8, "Rating Trend", border=1, align="C", ln=True)
-    
-    pdf.set_font("DejaVu", "", 12)
-    fav_civ_name = get_civ_name(stats["favorite_civ"][0])
-    fav_civ_games = stats["favorite_civ"][1]
-    pdf.cell(95, 12, f"{fav_civ_name} ({fav_civ_games} games)", border=1, align="C")
-    
-    # Rating trend
-    trend_map = {"up": "^ Rising", "down": "v Falling", "stable": "-> Stable"}
-    trend_text = trend_map.get(stats["rating_trend"], "-")
-    pdf.cell(95, 12, trend_text, border=1, align="C", ln=True)
-    
-    pdf.ln(8)
-    
-    # Pie chart: Civ distribution
-    if chart_paths["civ_pie"]:
-        pdf.image(chart_paths["civ_pie"], x=30, y=None, w=150)
-    
-    # Footer
-    pdf.set_y(-30)
-    pdf.set_font("DejaVu", "I", 8)
-    pdf.set_text_color(189, 195, 199)
-    pdf.cell(0, 6, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align="C")
-    pdf.cell(0, 6, "Agelytics — Opponent Scouting Report", ln=True, align="C")
-    
-    # ─── Page 2: Civ Analysis ───────────────────────────────
-    
-    pdf.add_page()
-    
-    pdf.set_font("DejaVu", "B", 16)
-    pdf.set_text_color(44, 62, 80)
-    pdf.cell(0, 12, "Civilization Analysis", ln=True, align="C")
-    
-    pdf.ln(6)
-    
-    # Bar chart
-    if chart_paths["civ_bars"]:
-        pdf.image(chart_paths["civ_bars"], x=15, y=None, w=180)
-    
-    pdf.ln(6)
-    
-    # Table: civ name | games | wins | losses | win rate
-    pdf.set_font("DejaVu", "B", 9)
-    pdf.set_text_color(44, 62, 80)
-    
-    col_widths = [70, 25, 25, 25, 35]
-    pdf.cell(col_widths[0], 8, "Civilization", border=1, align="C")
-    pdf.cell(col_widths[1], 8, "Games", border=1, align="C")
-    pdf.cell(col_widths[2], 8, "Wins", border=1, align="C")
-    pdf.cell(col_widths[3], 8, "Losses", border=1, align="C")
-    pdf.cell(col_widths[4], 8, "Win Rate", border=1, align="C", ln=True)
-    
     pdf.set_font("DejaVu", "", 8)
+    pdf.set_xy(start_x + 2*(card_w + spacing), y_pos + card_h + 1)
+    pdf.cell(card_w, 4, "Recent Form (Last 5)", align='C')
     
-    # Sort civs by games played
-    sorted_civs = sorted(stats["civ_stats"].items(), 
-                         key=lambda x: x[1]["games"], reverse=True)
+    # ELO Trend
+    draw_kpi_card(pdf, start_x + 3*(card_w + spacing), y_pos, card_w, card_h, 
+                  "ELO Trend", elo_trend_text, (149, 165, 166))
     
-    for civ_id, civ_data in sorted_civs:
-        civ_name = get_civ_name(civ_id)
-        games = civ_data["games"]
-        wins = civ_data["wins"]
-        losses = civ_data["losses"]
-        wr = civ_data["win_rate"]
-        
-        pdf.cell(col_widths[0], 7, civ_name, border=1)
-        pdf.cell(col_widths[1], 7, str(games), border=1, align="C")
-        pdf.cell(col_widths[2], 7, str(wins), border=1, align="C")
-        pdf.cell(col_widths[3], 7, str(losses), border=1, align="C")
-        pdf.cell(col_widths[4], 7, f"{wr:.1f}%", border=1, align="C", ln=True)
+    pdf.ln(card_h + 12)
+    
+    # Civ distribution pie chart
+    if chart_civ_pie_path:
+        pdf.image(chart_civ_pie_path, x=40, y=None, w=130)
     
     # Footer
-    pdf.set_y(-30)
-    pdf.set_font("DejaVu", "I", 8)
+    pdf.set_y(-20)
+    pdf.set_font("DejaVu", "", 7)
     pdf.set_text_color(189, 195, 199)
-    pdf.cell(0, 6, f"Data source: {data_source}", ln=True, align="C")
-    pdf.cell(0, 6, f"Page 2 of 4", ln=True, align="C")
+    pdf.cell(0, 4, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align="C")
+    pdf.cell(0, 4, "Agelytics — Opponent Scouting", ln=True, align="C")
     
-    # ─── Page 3: Maps & Trends ───────────────────────────────
+    # ─── Page 2: Performance Metrics ─────────────────────────
     
     pdf.add_page()
     
     pdf.set_font("DejaVu", "B", 16)
     pdf.set_text_color(44, 62, 80)
-    pdf.cell(0, 12, "Maps & Performance Trends", ln=True, align="C")
+    pdf.cell(0, 12, "Performance Metrics", ln=True, align="C")
     
     pdf.ln(4)
     
-    # Map frequency chart
-    if chart_paths["map_freq"]:
-        pdf.image(chart_paths["map_freq"], x=15, y=None, w=180)
-    
-    pdf.ln(6)
-    
-    # Rating evolution chart
-    if chart_paths["rating_evo"]:
-        pdf.image(chart_paths["rating_evo"], x=15, y=None, w=180)
-    else:
-        pdf.set_font("DejaVu", "I", 10)
-        pdf.set_text_color(127, 140, 141)
-        pdf.cell(0, 10, "Not enough rating data to show trend", ln=True, align="C")
+    if chart_perf_grid_path:
+        pdf.image(chart_perf_grid_path, x=5, y=None, w=200)
     
     # Footer
-    pdf.set_y(-30)
-    pdf.set_font("DejaVu", "I", 8)
+    pdf.set_y(-20)
+    pdf.set_font("DejaVu", "", 7)
     pdf.set_text_color(189, 195, 199)
-    pdf.cell(0, 6, f"Data source: {data_source}", ln=True, align="C")
-    pdf.cell(0, 6, f"Page 3 of 4", ln=True, align="C")
+    pdf.cell(0, 4, f"Page 2 of 4", ln=True, align="C")
     
-    # ─── Page 4: Summary & Patterns ──────────────────────────
+    # ─── Page 3: Army & Strategy ─────────────────────────────
     
     pdf.add_page()
     
     pdf.set_font("DejaVu", "B", 16)
     pdf.set_text_color(44, 62, 80)
-    pdf.cell(0, 12, "Summary & Key Takeaways", ln=True, align="C")
+    pdf.cell(0, 12, "Army & Strategy", ln=True, align="C")
     
-    pdf.ln(6)
+    pdf.ln(4)
     
-    # Detected patterns
+    if chart_army_grid_path:
+        pdf.image(chart_army_grid_path, x=5, y=None, w=200)
+    
+    # Footer
+    pdf.set_y(-20)
+    pdf.set_font("DejaVu", "", 7)
+    pdf.set_text_color(189, 195, 199)
+    pdf.cell(0, 4, f"Page 3 of 4", ln=True, align="C")
+    
+    # ─── Page 4: ELO & Trends ────────────────────────────────
+    
+    pdf.add_page()
+    
+    pdf.set_font("DejaVu", "B", 16)
+    pdf.set_text_color(44, 62, 80)
+    pdf.cell(0, 12, "ELO & Trends", ln=True, align="C")
+    
+    pdf.ln(4)
+    
+    # ELO evolution chart
+    if chart_elo_path:
+        pdf.image(chart_elo_path, x=15, y=None, w=180)
+    else:
+        pdf.set_font("DejaVu", "", 10)
+        pdf.set_text_color(127, 140, 141)
+        pdf.cell(0, 10, "Not enough ELO data", ln=True, align="C")
+    
+    pdf.ln(8)
+    
+    # Key Patterns section
     pdf.set_font("DejaVu", "B", 12)
     pdf.set_text_color(44, 62, 80)
-    pdf.cell(0, 10, "Detected Patterns", ln=True)
+    pdf.cell(0, 8, "Key Patterns", ln=True)
     
     pdf.set_font("DejaVu", "", 9)
     pdf.set_text_color(44, 62, 80)
     
     patterns = []
     
-    # Civ loyalty check
-    total_civs_played = len(stats["civ_stats"])
-    if total_civs_played <= 3:
-        patterns.append(f"• CIV LOYALTY: Plays only {total_civs_played} civilization(s) — predictable civ pool")
-    elif total_civs_played >= 8:
-        patterns.append(f"• DIVERSE POOL: Plays {total_civs_played} different civilizations — adaptable")
+    # Civ pool size
+    total_civs = len(civ_counts)
+    if total_civs <= 3:
+        patterns.append(f"• Plays only {total_civs} civ(s) — predictable pool")
+    elif total_civs >= 8:
+        patterns.append(f"• Plays {total_civs} civs — highly adaptable")
     else:
-        patterns.append(f"• MODERATE VARIETY: Plays {total_civs_played} civilizations")
+        patterns.append(f"• Civ pool: {total_civs} civilizations")
     
-    # Favorite civ dominance
-    fav_civ_pct = (stats["favorite_civ"][1] / stats["total_matches"] * 100)
+    # Civ loyalty
     if fav_civ_pct >= 40:
-        patterns.append(f"• COMFORT PICK: {fav_civ_name} is heavily favored ({fav_civ_pct:.0f}% of games)")
+        patterns.append(f"• Heavily favors {fav_civ_name} ({fav_civ_pct:.0f}% of games)")
     
-    # Win rate analysis
-    if stats["win_rate"] >= 60:
-        patterns.append(f"• STRONG PLAYER: {stats['win_rate']:.1f}% win rate")
-    elif stats["win_rate"] <= 40:
-        patterns.append(f"• STRUGGLING: {stats['win_rate']:.1f}% win rate — exploitable")
+    # Strongest/weakest civ
+    civ_wr_data = {}
+    for s in filtered_stats:
+        civ = s.get("civ")
+        if not civ:
+            continue
+        if civ not in civ_wr_data:
+            civ_wr_data[civ] = {"wins": 0, "total": 0}
+        civ_wr_data[civ]["total"] += 1
+        if s.get("winner"):
+            civ_wr_data[civ]["wins"] += 1
     
-    # Rating trend
-    if stats["rating_trend"] == "up":
-        patterns.append("• IMPROVING: Rating trending upward")
-    elif stats["rating_trend"] == "down":
-        patterns.append("• DECLINING: Rating trending downward")
+    civ_wrs = {civ: (data["wins"] / data["total"] * 100) 
+               for civ, data in civ_wr_data.items() if data["total"] >= 2}
     
-    # Game type mix (if TG data included)
-    if include_tg_warning:
-        game_types = stats["game_types"]
-        if "TG" in game_types or "Team Game" in game_types:
-            tg_count = game_types.get("TG", 0) + game_types.get("Team Game", 0)
-            patterns.append(f"• TEAM GAME DATA: {tg_count} TG matches included in analysis")
+    if civ_wrs:
+        strongest = max(civ_wrs.items(), key=lambda x: x[1])
+        weakest = min(civ_wrs.items(), key=lambda x: x[1])
+        patterns.append(f"• Strongest civ: {strongest[0]} ({strongest[1]:.0f}% WR)")
+        patterns.append(f"• Weakest civ: {weakest[0]} ({weakest[1]:.0f}% WR)")
+    
+    # Feudal times trend
+    if len(feudal_times) >= 5:
+        first_half = feudal_times[:len(feudal_times)//2]
+        second_half = feudal_times[len(feudal_times)//2:]
+        
+        avg_first = safe_mean(first_half)
+        avg_second = safe_mean(second_half)
+        
+        if avg_first and avg_second:
+            diff = avg_second - avg_first
+            if diff < -10:
+                patterns.append(f"• Feudal times getting faster (improving)")
+            elif diff > 10:
+                patterns.append(f"• Feudal times getting slower")
+    
+    # TC discipline
+    if avg_tc_idle == 0:
+        patterns.append(f"• Perfect TC discipline (0s idle)")
+    elif avg_tc_idle < 10:
+        patterns.append(f"• Good TC discipline ({avg_tc_idle}s idle avg)")
+    elif avg_tc_idle > 60:
+        patterns.append(f"• Poor TC discipline ({avg_tc_idle}s idle avg)")
+    else:
+        patterns.append(f"• Average TC idle: {avg_tc_idle}s")
+    
+    # Aggression profile
+    if avg_duration_min < 25:
+        patterns.append(f"• Aggressive playstyle (avg {avg_duration_min:.0f}min games)")
+    elif avg_duration_min > 35:
+        patterns.append(f"• Boomer playstyle (avg {avg_duration_min:.0f}min games)")
+    else:
+        patterns.append(f"• Balanced game length (avg {avg_duration_min:.0f}min)")
     
     # Print patterns
     for pattern in patterns:
         pdf.multi_cell(0, 5, pattern)
-        pdf.ln(1)
-    
-    pdf.ln(4)
-    
-    # Key takeaways
-    pdf.set_font("DejaVu", "B", 12)
-    pdf.set_text_color(44, 62, 80)
-    pdf.cell(0, 10, "Key Takeaways", ln=True)
-    
-    pdf.set_font("DejaVu", "", 9)
-    
-    takeaways = []
-    
-    # Build recommendation based on data
-    if fav_civ_pct >= 40:
-        fav_wr = stats["civ_stats"][stats["favorite_civ"][0]]["win_rate"]
-        if fav_wr >= 60:
-            takeaways.append(f"• Expect {fav_civ_name} — they excel with it ({fav_wr:.0f}% WR)")
-        elif fav_wr <= 40:
-            takeaways.append(f"• Expect {fav_civ_name} — but they struggle ({fav_wr:.0f}% WR)")
-    
-    # Map preparation
-    top_maps = sorted(stats["map_stats"].items(), key=lambda x: x[1], reverse=True)[:3]
-    map_list = ", ".join([m[0] for m in top_maps])
-    takeaways.append(f"• Most played maps: {map_list}")
-    
-    # Sample size note
-    takeaways.append(f"• Analysis based on {stats['total_matches']} matches")
-    
-    # Print takeaways
-    for takeaway in takeaways:
-        pdf.multi_cell(0, 5, takeaway)
-        pdf.ln(1)
-    
-    pdf.ln(4)
-    
-    # Data source disclaimer
-    pdf.set_font("DejaVu", "I", 9)
-    pdf.set_text_color(127, 140, 141)
-    pdf.multi_cell(0, 5, 
-        f"Data source: {data_source}. Statistics are deterministic and based on available "
-        f"replay data. Player behavior may vary in different contexts."
-    )
+        pdf.ln(0.5)
     
     # Footer
-    pdf.set_y(-30)
-    pdf.set_font("DejaVu", "I", 8)
+    pdf.set_y(-25)
+    pdf.set_font("DejaVu", "", 7)
     pdf.set_text_color(189, 195, 199)
-    pdf.cell(0, 6, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align="C")
-    pdf.cell(0, 6, f"Page 4 of 4", ln=True, align="C")
+    
+    data_source_text = "Data source: 1v1 only" if not tg_warning else "Data source: All ranked (includes TG)"
+    pdf.cell(0, 4, data_source_text, ln=True, align="C")
+    pdf.cell(0, 4, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align="C")
+    pdf.cell(0, 4, "Page 4 of 4", ln=True, align="C")
     
     # Save PDF
     pdf.output(output_path)
     
-    # Cleanup temp chart files
-    for path in chart_paths.values():
+    # Cleanup temp files
+    for path in [chart_civ_pie_path, chart_perf_grid_path, chart_army_grid_path, chart_elo_path]:
         if path and os.path.exists(path):
             os.remove(path)
     
@@ -746,41 +716,10 @@ def generate_scouting_pdf(parsed_matches: list[dict], opponent_name: str,
 
 
 if __name__ == "__main__":
-    from .replay_parser import parse_opponent_replays
+    import json
     
-    opponent_id = 19012079
-    opponent_name = "Urubu"
+    with open('/tmp/urubu_stats.json') as f:
+        stats = json.load(f)
     
-    print(f"Parsing replays for {opponent_name} (ID: {opponent_id})...")
-    parsed = parse_opponent_replays("replays", opponent_id)
-    
-    if not parsed:
-        print("❌ No replays found or parsed")
-        exit(1)
-    
-    # Debug: print game types
-    game_types = set(m.get("game_type", "Unknown") for m in parsed)
-    print(f"Game types found: {game_types}")
-    
-    # Only generate 1v1 match PDF if we have 1v1 matches
-    matches_1v1 = [m for m in parsed if m.get("game_type") == "1v1"]
-    
-    if matches_1v1:
-        print(f"\n📄 Generating single match PDF (1v1)...")
-        try:
-            path1 = generate_match_pdf(matches_1v1[0], opponent_name, "/tmp/urubu_match.pdf")
-            print(f"✅ Match PDF: {path1}")
-        except Exception as e:
-            print(f"⚠️  Match PDF failed: {e}")
-    else:
-        print("⚠️  No 1v1 matches found, skipping single match PDF")
-    
-    # Aggregate scouting PDF (always)
-    print(f"\n📊 Generating aggregate scouting PDF...")
-    try:
-        path2 = generate_scouting_pdf(parsed, opponent_name, opponent_id, "/tmp/urubu_scouting.pdf")
-        print(f"✅ Scouting PDF: {path2}")
-    except Exception as e:
-        print(f"❌ Scouting PDF failed: {e}")
-        import traceback
-        traceback.print_exc()
+    generate_rich_scouting_pdf(stats, "Urubu", "/tmp/urubu_scouting_v2.pdf")
+    print("Done!")
