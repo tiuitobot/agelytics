@@ -7,6 +7,28 @@ from typing import Optional
 from .data import CIVILIZATIONS
 
 BASE_URL = "https://aoe-api.worldsedgelink.com/community/leaderboard"
+
+# WorldsEdge API uses alphabetical civ IDs (0-indexed), NOT the same as replay files.
+# Built by cross-referencing API data with parsed replay files (9/9 confirmed).
+_API_CIVS_ALPHA = sorted(
+    [name for cid, name in CIVILIZATIONS.items() if cid > 0]
+)
+API_CIV_MAP = {i: name for i, name in enumerate(_API_CIVS_ALPHA)}
+# Reverse: replay civ_id from API civ_id
+_REPLAY_CIV_BY_NAME = {name: cid for cid, name in CIVILIZATIONS.items() if cid > 0}
+
+
+def api_civ_name(api_civ_id: int) -> str:
+    """Translate WorldsEdge API civ_id (alphabetical) to correct civ name."""
+    return API_CIV_MAP.get(api_civ_id, f"Unknown({api_civ_id})")
+
+
+def api_civ_to_replay_id(api_civ_id: int) -> int:
+    """Convert API civ_id to replay file civ_id."""
+    name = API_CIV_MAP.get(api_civ_id)
+    if name:
+        return _REPLAY_CIV_BY_NAME.get(name, -1)
+    return -1
 TIMEOUT = 10.0
 CACHE_TTL = 300  # 5 minutes
 
@@ -147,7 +169,7 @@ def get_match_history(profile_id: int, count: int = 20) -> Optional[list[dict]]:
             players.append({
                 "profile_id": member.get("profile_id"),
                 "civ_id": civ_id,
-                "civ_name": CIVILIZATIONS.get(civ_id, f"Unknown({civ_id})"),
+                "civ_name": api_civ_name(civ_id),
                 "team": member.get("teamid", 0),
                 "outcome": member.get("outcome", -1),  # 1=win, 0=loss
                 "old_rating": member.get("oldrating", 0),
