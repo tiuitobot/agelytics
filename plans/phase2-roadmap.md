@@ -268,12 +268,111 @@ in background during the game. By game end, baseline is ready → instant feedba
 
 ---
 
+## v1.3.0 — Multi-User Monitoring
+
+### Objectives
+
+1. Monitor any player's matches via API (no local replay files needed).
+2. Run the full analysis pipeline (report + AI analysis + Deep Coach) for monitored players.
+3. Deliver results via Telegram (or other configured channel).
+
+### Features
+
+| Feature | Description |
+|---|---|
+| Watchlist management | Add/remove players by username or profile ID |
+| API-based match detection | Poll match history for new completed games |
+| Replay download + parse | Fetch replay from blob storage → parser pipeline |
+| Full report generation | Match Report PDF + AI Analysis + Deep Coach (same as local) |
+| Telegram delivery | Send reports to configured chat when new match detected |
+| Opponent scouting feed | "Player X played 10 games this week, practicing Mongols, switched to tower rush" |
+
+### Architecture
+
+```
+  watchlist.json (player IDs + config)
+        │
+        ▼
+  api_watcher.py (polls match history every N minutes)
+        │
+        ├── new match detected?
+        │         │
+        │         ▼
+        │   replay_downloader.py (blob storage)
+        │         │
+        │         ▼
+        │   parser.py ──► db.py
+        │         │
+        │         ▼
+        │   report pipeline (PDF + AI + Deep Coach)
+        │         │
+        │         ▼
+        │   delivery.py (Telegram / webhook)
+        │
+        └── no new match → sleep(interval)
+```
+
+**Key difference from v1.0.0 watcher:** Current watcher monitors local replay folder.
+v1.3.0 watcher polls the API — no access to the monitored player's machine needed.
+
+### Use Cases
+
+- **Impress friends:** Monitor Lucas's Dota... just kidding. Monitor friends' AoE2 games,
+  send them analysis they didn't ask for.
+- **Pro player scouting:** Track recurring opponents — detect pattern changes, new openings,
+  civ pool shifts over time.
+- **Team coaching:** Coach monitors all team members, reviews reports centrally.
+- **Self-monitoring on other devices:** Play on a different PC, reports still generated.
+
+### Configuration
+
+```json
+{
+  "watchlist": [
+    {
+      "profileId": "76561198...",
+      "name": "Lucas",
+      "pollInterval": 300,
+      "reports": ["match", "ai"],
+      "delivery": "telegram:chat_id"
+    }
+  ]
+}
+```
+
+### Dependencies
+
+- v1.1.0 API client (player profiles, match history)
+- v1.2.0 parser infrastructure (replay download + parse)
+- v1.2.1 tactical impact (optional — enables impact analysis for monitored players too)
+- Telegram bot integration (already exists in v1.0.0)
+
+### Risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| API rate limits with many monitored players | Delayed detection | Stagger polls; batch requests; respect backoff |
+| Replay unavailable (private/expired) | Missing analysis | Log and notify; retry once after delay |
+| Storage growth with many players | Disk usage | Configurable retention; delete raw replays after parse |
+| Notification spam | Annoyed users | Configurable: instant / daily digest / silent (just store) |
+
+### Success Criteria
+
+- [ ] Add player to watchlist, detect their next match within poll interval
+- [ ] Full report generated without any local replay file
+- [ ] Telegram delivery within 2 minutes of match completion + poll
+- [ ] Handles 10+ monitored players without API throttling
+- [ ] Configurable report tiers per player (match only / +AI / +Deep Coach)
+
+---
+
 ## Release Sequence
 
 ```
-v1.0.0 (current)  ──►  v1.1.0 (overlay)  ──►  v1.2.0 (benchmarks)  ──►  v1.2.1 (impact)
-   replay analysis      scouting 10min       population + xELO        causal inference
-   deterministic        deterministic        determ + ML              determ + stats
+v1.0.0 ──► v1.1.0 ──► v1.2.0 ──► v1.2.1 ──► v1.3.0
+replay    scouting   benchmarks  tactical   multi-user
+analysis  overlay    + xELO      impact     monitoring
+determ    determ     determ+ML   determ+stats  determ
 ```
 
 ## Conventions
