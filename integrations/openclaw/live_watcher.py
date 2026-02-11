@@ -233,7 +233,10 @@ def run_watcher(poll_interval: float, server_url: str) -> None:
 def trigger_scouting(match_info: dict, server_url: str) -> None:
     """Trigger scouting report for the opponent via the overlay server.
 
-    The overlay server endpoint expects a *player name* (not profile_id).
+    Optional prewarm only.
+    The overlay remains functional without this call because the primary flow is:
+    watcher -> /api/match-context -> overlay polling -> /api/scout/{opponent_name}.
+    This helper only warms cache/latency.
     """
     opponent_name = match_info.get("opponent_name")
     if not opponent_name:
