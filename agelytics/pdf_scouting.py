@@ -506,10 +506,69 @@ def chart_elo_evolution(stats: list[dict]):
     return _save_fig(fig)
 
 
+# ─── API ELO Enrichment ───────────────────────────────────────
+
+
+def enrich_with_api_elo(flat_stats: list[dict], profile_id: int) -> list[dict]:
+    """Replace static replay ELO with real API ratings.
+    
+    Fetches match history from aoe2companion and matches by date/diplomacy
+    to update ELO values with actual per-match ratings.
+    """
+    try:
+        from .api_client import get_match_history
+    except ImportError:
+        return flat_stats
+    
+    api_matches = get_match_history(profile_id, count=300)
+    if not api_matches:
+        return flat_stats
+    
+    # Build lookup: match_id → rating for this player
+    rating_by_match = {}
+    for m in api_matches:
+        match_id = m.get("match_id")
+        for p in m.get("players", []):
+            if p.get("profile_id") == profile_id:
+                rating_by_match[match_id] = p.get("new_rating", 0)
+                break
+    
+    # Also build ordered list for sequential matching
+    api_ratings_ordered = []
+    for m in api_matches:
+        lb = m.get("matchtype_id", 0)
+        diplomacy = "1v1" if lb == 6 else "TG" if lb == 7 else "other"
+        for p in m.get("players", []):
+            if p.get("profile_id") == profile_id:
+                api_ratings_ordered.append({
+                    "rating": p.get("new_rating", 0),
+                    "diplomacy": diplomacy,
+                    "starttime": m.get("starttime", 0),
+                })
+                break
+    
+    # Update flat_stats: try to match by diplomacy + order
+    # API returns newest first, flat_stats is oldest first
+    api_1v1 = [r for r in reversed(api_ratings_ordered) if r["diplomacy"] == "1v1"]
+    api_tg = [r for r in reversed(api_ratings_ordered) if r["diplomacy"] == "TG"]
+    
+    idx_1v1 = 0
+    idx_tg = 0
+    for s in flat_stats:
+        if s.get("diplomacy") == "1v1" and idx_1v1 < len(api_1v1):
+            s["elo"] = api_1v1[idx_1v1]["rating"]
+            idx_1v1 += 1
+        elif s.get("diplomacy") == "TG" and idx_tg < len(api_tg):
+            s["elo"] = api_tg[idx_tg]["rating"]
+            idx_tg += 1
+    
+    return flat_stats
+
+
 # ─── Main PDF Generator ──────────────────────────────────────
 
 
-def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_path: str) -> str:
+def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_path: str, profile_id: int = None) -> str:
     """Generate rich multi-page scouting PDF with small multiples.
     
     Args:
@@ -529,6 +588,10 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
         if flat is not None:
             flat_stats.append(flat)
 
+    # Enrich with API ELO if profile_id provided
+    if profile_id:
+        flat_stats = enrich_with_api_elo(flat_stats, profile_id)
+    
     # Filter stats
     filtered_stats, tg_warning = filter_stats(flat_stats)
     
