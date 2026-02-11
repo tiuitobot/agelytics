@@ -231,18 +231,21 @@ def run_watcher(poll_interval: float, server_url: str) -> None:
 
 
 def trigger_scouting(match_info: dict, server_url: str) -> None:
-    """Trigger scouting report for the opponent via the overlay server."""
-    opponent_id = match_info.get("opponent_profile_id")
-    if not opponent_id:
+    """Trigger scouting report for the opponent via the overlay server.
+
+    The overlay server endpoint expects a *player name* (not profile_id).
+    """
+    opponent_name = match_info.get("opponent_name")
+    if not opponent_name:
         return
 
     try:
         with httpx.Client(timeout=30.0) as client:
             resp = client.get(
-                f"{server_url}/api/scout/{opponent_id}",
+                f"{server_url}/api/scout/{opponent_name}",
             )
             if resp.status_code == 200:
-                print(f"[SCOUT] Scouting triggered for {match_info['opponent_name']}")
+                print(f"[SCOUT] Scouting triggered for {opponent_name}")
             else:
                 print(f"[SCOUT] Server returned {resp.status_code}")
     except (httpx.HTTPError, httpx.TimeoutException) as e:
