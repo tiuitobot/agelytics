@@ -141,7 +141,7 @@ def scout_player(player_name: str) -> dict:
     profile_id = player["profile_id"]
 
     # Get match history
-    matches = get_match_history(profile_id, count=50)
+    matches = get_match_history(profile_id, count=150)
     if not matches:
         # Return partial data
         return {
