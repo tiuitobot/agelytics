@@ -174,12 +174,106 @@ aoe-api blob storage (.gz replays)
 
 ---
 
+## v1.2.1 — Tactical Impact Analysis (Causal Inference)
+
+### Objectives
+
+1. Measure the **causal impact** of player tactics by comparing opponent's in-game metrics
+   against their personal baseline (from downloaded replay history).
+2. Present results with statistical confidence scoring (🟢🟡🔴).
+3. Deliver instant post-game feedback: "Your scout rush reduced opponent eco by ~25%."
+
+### Core Concept
+
+The opponent's replay history serves as a **natural control group**. The current game is the
+"treatment." The difference between observed metrics and opponent baseline = estimated tactical
+impact.
+
+```
+Opponent baseline (N replays)     Current game
+  avg vills@15min: 28               vills@15min: 21
+  avg castle time: 16:30            castle time: 19:00
+  avg TC idle: 12%                  TC idle: 25%
+                                          │
+                                          ▼
+                              Tactical Impact Report
+                    "Scout rush reduced eco by ~25% (🟢 high confidence)"
+```
+
+### Confidence Scoring
+
+| Level | Criteria | Display |
+|---|---|---|
+| 🟢 High | n ≥ 30, \|z\| > 2.0 | "High confidence" |
+| 🟡 Moderate | n ≥ 10, \|z\| > 1.5 | "Moderate confidence" |
+| 🔴 Low | n < 10 or \|z\| < 1.5 | "Low confidence — treat as estimate" |
+
+**Method:** z-score or Welch's t-test comparing observed value against opponent's distribution
+(mean ± std). No heavy libraries needed — basic arithmetic with mean and standard deviation.
+
+**UX:** Color indicator + one-line summary by default. Expandable detail: n, std dev,
+confidence interval, z-score.
+
+### Background Pipeline
+
+```
+overlay shows (10min) ──► overlay hides
+                               │
+                    replay_downloader.py (background thread)
+                    downloads opponent replay history during game
+                               │
+                          game ends
+                               │
+                          parser.py processes opponent replays
+                               │
+                    tactical_impact.py compares metrics
+                               │
+                    Instant post-game report with confidence
+```
+
+**Key insight:** Download starts when overlay appears (opponent identified), parsing happens
+in background during the game. By game end, baseline is ready → instant feedback.
+
+### Metrics for Impact Analysis
+
+- Villager count at key timestamps (10, 15, 20, 25 min)
+- Age-up timings (Feudal, Castle, Imperial)
+- TC idle percentage
+- Military unit composition timings
+- Resource collection rates
+- Walling completion (if detectable)
+
+### Dependencies
+
+- v1.2.0 parser + benchmark infrastructure
+- Opponent replay download pipeline (from v1.1.0 API client)
+- Sufficient opponent history (n ≥ 10 for any analysis, n ≥ 30 for high confidence)
+
+### Risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Opponent has few replays (n < 10) | No baseline | Show 🔴 or skip metric; fallback to population benchmark |
+| Causal attribution is imperfect (map/civ confounds) | Misleading conclusions | Disclaimer: "estimated impact"; condition on civ+map when n allows |
+| Download time exceeds game length | Baseline not ready | Progressive analysis: start with whatever is ready, refine async |
+| Opponent plays different style per civ | Baseline mismatch | Filter baseline by civ when n ≥ 10; fallback to all-civ baseline |
+
+### Success Criteria
+
+- [ ] Post-game tactical impact report within 30s of game end
+- [ ] Confidence scoring (🟢🟡🔴) on every metric
+- [ ] Expandable detail view with statistical backing
+- [ ] Graceful degradation when opponent history is sparse
+- [ ] Zero false "high confidence" claims (validated against known matchups)
+
+---
+
 ## Release Sequence
 
 ```
-v1.0.0 (current)  ──►  v1.1.0 (scouting overlay)  ──►  v1.2.0 (benchmarks + xELO)
-   replay analysis         real-time scouting              population analytics
-   deterministic           deterministic                   deterministic + ML
+v1.0.0 (current)  ──►  v1.1.0 (overlay)  ──►  v1.2.0 (benchmarks)  ──►  v1.2.1 (impact)
+   replay analysis      scouting 10min       population + xELO        causal inference
+   deterministic        deterministic        determ + ML              determ + stats
 ```
 
 ## Conventions
