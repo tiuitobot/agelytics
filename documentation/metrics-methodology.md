@@ -111,7 +111,7 @@
 
 ### Average Metrics (inter-match) 📐
 - **Definition:** Central tendency across multiple matches
-- **Method:** Trimmed mean (remove top/bottom 10%) OR median + IQR
+- **Method:** Winsorized mean (10%) OR median + IQR
 - **Outlier handling:** Matches with values >2σ from mean flagged as outliers in charts
 - **Applies to:** TC Idle, eAPM, Feudal time, Duration, Housed time
 
