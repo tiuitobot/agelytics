@@ -1,0 +1,151 @@
+{
+  "repo": "agelytics",
+  "version": "1.1.0-dev",
+  "lastUpdated": "2026-02-11",
+  "keyInfo": [
+    {
+      "id": "K001",
+      "info": "Replay download URL: https://aoe.ms/replay/?gameId={matchId}&profileId={profileId} — redirects to api.ageofempires.com/api/GameStats/AgeII/GetMatchReplay/. No auth needed. Tested: 499KB replay downloaded successfully.",
+      "importance": "critical",
+      "status": "confirmed",
+      "date": "2026-02-11",
+      "source": "aoe2insights.com HTML inspection + curl test"
+    },
+    {
+      "id": "K002",
+      "info": "aoe2companion API (PRIMARY): data.aoe2companion.com/api/matches?profile_ids={id}&count={n} — paginated, full history, correct civ names natively. 300 match limit covers full recent history (~5s fetch).",
+      "importance": "critical",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "API testing"
+    },
+    {
+      "id": "K003",
+      "info": "WorldsEdge API civ IDs are alphabetical 0-indexed, NOT aoe2.net IDs. Cross-referenced 9/9 confirmed. Use aoe2companion for civ names instead.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "manual cross-reference"
+    },
+    {
+      "id": "K004",
+      "info": "Overlay server: port 5555, agelytics/overlay_server.py (FastAPI). Access at http://localhost:5555/overlay. Branch: feature/scouting-overlay (~18 commits).",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "implementation"
+    },
+    {
+      "id": "K005",
+      "info": "Live watcher: integrations/openclaw/live_watcher.py — monitors savegame dir for new MP Replay files. Triggers API scouting on new game detected.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "implementation"
+    },
+    {
+      "id": "K006",
+      "info": "Callback handler: integrations/openclaw/callback.sh — routes Telegram inline button callbacks (agelytics_report_{id}, agelytics_analyze_{id}, agelytics_deep_{id}, etc).",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "implementation"
+    },
+    {
+      "id": "K007",
+      "info": "Deep Coach style: forensic phase-by-phase format. Style guide at knowledge/aoe2/deep-coach-style-guide.md. NOT generic timeline+insights.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "Bruno feedback + style guide"
+    },
+    {
+      "id": "K008",
+      "info": "recordGame field in aoe2companion API response indicates if replay exists on Microsoft servers. true = downloadable via aoe.ms URL.",
+      "importance": "high",
+      "status": "confirmed",
+      "date": "2026-02-11",
+      "source": "API response inspection"
+    },
+    {
+      "id": "K009",
+      "info": "Overlay shows pre-game scouting only (10 min), then hides. In-game timers = borderline cheating per Bruno's call.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "Bruno decision"
+    },
+    {
+      "id": "K010",
+      "info": "Bruno's AoE2 profile: blzulian, profile_id 24635675, Steam ID 76561198028659538, ELO ~619, main civ Franks.",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "Bruno"
+    },
+    {
+      "id": "K011",
+      "info": "Savegame directory: /mnt/c/Users/Administrador/Games/Age of Empires 2 DE/76561198028659538/savegame/",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "system inspection"
+    },
+    {
+      "id": "K012",
+      "info": "Pandas + seaborn OK in Agelytics (Bruno reversed previous constraint). Used in PDF reports.",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-09",
+      "source": "Bruno decision"
+    },
+    {
+      "id": "K013",
+      "info": "Semver from v1.0.0. MAJOR.MINOR.PATCH. CHANGELOG.md in Keep a Changelog format.",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-09",
+      "source": "Bruno decision"
+    },
+    {
+      "id": "K014",
+      "info": "v1.1.0 pending: auto-refresh JS (setInterval polling), watcher full automation, branch merge to master.",
+      "importance": "high",
+      "status": "planned",
+      "date": "2026-02-11",
+      "source": "sprint planning"
+    },
+    {
+      "id": "K015",
+      "info": "Opponent replay scouting (killer feature): download 20-50 recent replays of opponent, parse with mgz, show real build order/timing/pattern data in overlay.",
+      "importance": "critical",
+      "status": "planned",
+      "date": "2026-02-11",
+      "source": "Bruno + Tiuito design"
+    },
+    {
+      "id": "K016",
+      "info": "v1.2.1 Tactical Impact: use opponent's replay baseline as natural control group for causal inference. Bruno's idea — genuinely novel.",
+      "importance": "high",
+      "status": "planned",
+      "date": "2026-02-10",
+      "source": "Bruno idea"
+    },
+    {
+      "id": "K017",
+      "info": "Civ KB complete: 45/45 civs in knowledge/aoe2/civs/. Matchup lookup functional.",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "implementation"
+    },
+    {
+      "id": "K018",
+      "info": "Not all replays available on Microsoft servers. Older games get removed frequently. Check recordGame field before attempting download.",
+      "importance": "high",
+      "status": "confirmed",
+      "date": "2026-02-11",
+      "source": "aoe2insights FAQ"
+    }
+  ]
+}
