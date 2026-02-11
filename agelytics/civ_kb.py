@@ -268,6 +268,24 @@ CIV_DATA: dict[str, dict] = {
         "unique_units": ["Rattan Archer"],
         "bonuses": "Reveal enemy positions at game start. Archery Range units +20% HP. Conscription free. Paper Money gives team gold.",
     },
+    "Bohemians": {
+        "pros": ["Strong gunpowder units", "Cheap Monasteries and techs", "Hussite unique units"],
+        "cons": ["No cavalry", "Slow early game", "Dependent on gold"],
+        "unique_units": ["Hussite Wagon", "Houfnice"],
+        "bonuses": "Chemistry free. Monastery techs -50% cost. Mining Camp upgrades free. Spearmen +25% bonus damage.",
+    },
+    "Italians": {
+        "pros": ["Cheaper age-ups", "Strong Genoese Crossbowmen (anti-cav)", "Gunpowder discount"],
+        "cons": ["Weak cavalry", "No strong melee infantry", "Dependent on gold units"],
+        "unique_units": ["Genoese Crossbowman", "Condottiero"],
+        "bonuses": "Age advance -15% cost. Dock techs -50%. Gunpowder units -20% cost. Fishing Ships -15 wood.",
+    },
+    "Hindustanis": {
+        "pros": ["Strong camels", "Good gunpowder", "Villager discount on food"],
+        "cons": ["No Knights", "Weak siege", "Limited archer options late game"],
+        "unique_units": ["Ghulam", "Imperial Camel Rider"],
+        "bonuses": "Villagers -10/15/20/25% food cost per age. Camel Riders +1/+1 armor. Gunpowder units +1 range.",
+    },
 }
 
 # Matchup knowledge: (civ1, civ2) -> (favorability, note)

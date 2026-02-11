@@ -492,13 +492,29 @@ async function doMatchup() {
   const el = document.getElementById('matchupResult');
   el.innerHTML = '<div class="status-msg">Loading...</div>';
   try {
-    const resp = await fetch(`${API}/api/matchup/${encodeURIComponent(c1)}/${encodeURIComponent(c2)}`);
-    const data = await resp.json();
+    const [matchResp, civ1Resp, civ2Resp] = await Promise.all([
+      fetch(`${API}/api/matchup/${encodeURIComponent(c1)}/${encodeURIComponent(c2)}`),
+      fetch(`${API}/api/civ/${encodeURIComponent(c1)}`),
+      fetch(`${API}/api/civ/${encodeURIComponent(c2)}`)
+    ]);
+    const data = await matchResp.json();
+    const civA = await civ1Resp.json();
+    const civB = await civ2Resp.json();
+
+    const civDetail = (civ) => {
+      const pros = (civ.pros||[]).map(p => `<span class="tag tag-pro">✓ ${p}</span>`).join('');
+      const cons = (civ.cons||[]).map(c => `<span class="tag tag-con">✗ ${c}</span>`).join('');
+      const uu = civ.unique_units ? `<div style="font-size:11px;color:#aaa;margin-top:4px">UU: ${civ.unique_units.join(', ')}</div>` : '';
+      return `<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:#ffa500;margin-bottom:4px">${civ.civ}</div><div class="civ-detail">${pros}${cons}${uu}</div></div>`;
+    };
+
     el.innerHTML = `
       <div class="matchup-result">
         <div class="matchup-fav">${data.favorability}</div>
         <div class="matchup-note">${data.note}</div>
-      </div>`;
+      </div>
+      ${civDetail(civA)}
+      ${civDetail(civB)}`;
   } catch (e) {
     el.innerHTML = `<div class="status-msg error">${e.message}</div>`;
   }
