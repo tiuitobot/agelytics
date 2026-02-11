@@ -489,6 +489,11 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                 tc_free_at = 0.0  # when the TC queue finishes
                 total_idle = 0.0
                 
+                # TC idle breakdown by gap category
+                micro_idle = {"count": 0, "total": 0.0}   # 5-15s
+                macro_idle = {"count": 0, "total": 0.0}   # 15-60s
+                afk_idle = {"count": 0, "total": 0.0}     # 60s+
+                
                 for click_time, duration, task_type in tasks:
                     num_tcs = _tc_count_at(click_time)
                     
@@ -497,6 +502,16 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                         idle_gap = click_time - tc_free_at
                         if idle_gap > 5:
                             total_idle += idle_gap
+                            # Categorize gap
+                            if idle_gap < 15:
+                                micro_idle["count"] += 1
+                                micro_idle["total"] += idle_gap
+                            elif idle_gap < 60:
+                                macro_idle["count"] += 1
+                                macro_idle["total"] += idle_gap
+                            else:
+                                afk_idle["count"] += 1
+                                afk_idle["total"] += idle_gap
                         # Task starts now
                         tc_free_at = click_time + (duration / num_tcs)
                     else:
@@ -504,6 +519,11 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                         tc_free_at += (duration / num_tcs)
                 
                 result["tc_idle"][pname] = round(total_idle, 1)
+                result.setdefault("tc_idle_breakdown", {})[pname] = {
+                    "micro": {"count": micro_idle["count"], "total": round(micro_idle["total"], 1)},
+                    "macro": {"count": macro_idle["count"], "total": round(macro_idle["total"], 1)},
+                    "afk": {"count": afk_idle["count"], "total": round(afk_idle["total"], 1)},
+                }
                 
                 # ──────────────────────────────────────────────────────────
                 # LOWER BOUND: Heuristic housed time (gap-based)
