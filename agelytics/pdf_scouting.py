@@ -96,6 +96,20 @@ def extract_player_stats(match_data: dict, player_name: str) -> dict:
         tc_idle_pct = metrics[player_name].get("tc_idle_percent")
     else:
         tc_idle_pct = None
+    
+    # Housed time (lower and upper bounds)
+    housed_lower_raw = match_data.get("housed_time_lower", {})
+    housed_lower = housed_lower_raw.get(player_name, 0) if isinstance(housed_lower_raw, dict) else 0
+    
+    housed_upper_raw = match_data.get("housed_time_upper", {})
+    housed_upper = housed_upper_raw.get(player_name, 0) if isinstance(housed_upper_raw, dict) else 0
+    
+    # TC idle effective (lower and upper bounds)
+    tc_idle_eff_lower_raw = match_data.get("tc_idle_effective_lower", {})
+    tc_idle_eff_lower = tc_idle_eff_lower_raw.get(player_name, 0) if isinstance(tc_idle_eff_lower_raw, dict) else 0
+    
+    tc_idle_eff_upper_raw = match_data.get("tc_idle_effective_upper", {})
+    tc_idle_eff_upper = tc_idle_eff_upper_raw.get(player_name, 0) if isinstance(tc_idle_eff_upper_raw, dict) else 0
 
     # Unit production for this player
     unit_prod = match_data.get("unit_production", {})
@@ -123,6 +137,10 @@ def extract_player_stats(match_data: dict, player_name: str) -> dict:
         "imperial": age_times.get("imperial"),
         "tc_idle": tc_idle_val,
         "tc_idle_percent": tc_idle_pct,
+        "housed_lower": housed_lower,
+        "housed_upper": housed_upper,
+        "tc_idle_eff_lower": tc_idle_eff_lower,
+        "tc_idle_eff_upper": tc_idle_eff_upper,
         "duration": match_data.get("duration_secs", 0),
         "map": match_data.get("map_name", "Unknown"),
         "diplomacy": match_data.get("diplomacy"),
@@ -265,22 +283,46 @@ def chart_performance_grid(stats: list[dict]):
     ax.grid(axis='y', alpha=0.3)
     ax.invert_yaxis()  # Faster at bottom
     
-    # Top-right: TC idle per match
+    # Top-right: Housing time range per match (lower → upper bound)
     ax = axes[0, 1]
     
-    tc_idle = [s.get("tc_idle", 0) for s in stats]
+    housed_lower = [s.get("housed_lower", 0) for s in stats]
+    housed_upper = [s.get("housed_upper", 0) for s in stats]
     winners = [s.get("winner", False) for s in stats]
     diplomacies = [s.get("diplomacy", "1v1") for s in stats]
-    colors = [COLORS["victory"] if w else COLORS["defeat"] for w in winners]
     
-    bars = ax.bar(indices, tc_idle, color=colors, edgecolor='white', linewidth=0.5)
-    # Mark TG matches with a diamond marker on top
-    for i, (tc, dip) in enumerate(zip(tc_idle, diplomacies)):
+    # Draw range bars with gradient fill
+    for i, (lower, upper, win, dip) in enumerate(zip(housed_lower, housed_upper, winners, diplomacies)):
+        # Bar color: green if winner, red if loser (light shade)
+        bar_color = COLORS["victory"] if win else COLORS["defeat"]
+        bar_alpha = 0.3
+        
+        # Draw vertical bar from lower to upper
+        if upper > lower:
+            ax.plot([i, i], [lower, upper], color=bar_color, alpha=bar_alpha, linewidth=6, solid_capstyle='round')
+        
+        # Lower bound: green dot
+        ax.scatter(i, lower, color='green', s=30, zorder=3, alpha=0.8)
+        
+        # Upper bound: orange dot
+        ax.scatter(i, upper, color='orange', s=30, zorder=3, alpha=0.8)
+        
+        # Mark TG matches with star
         if dip == "TG":
-            ax.plot(i, tc + max(tc_idle) * 0.03, marker='*', color='gray', markersize=8, alpha=0.7)
+            y_pos = upper + (max(housed_upper) if housed_upper else 0) * 0.03
+            ax.plot(i, y_pos, marker='*', color='gray', markersize=8, alpha=0.7)
+    
+    # Custom legend
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=6, label='Lower (heuristic)'),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='orange', markersize=6, label='Upper (timeline)'),
+    ]
+    ax.legend(handles=legend_elements, loc='best', fontsize=7)
+    
     ax.set_xlabel("Match Index")
-    ax.set_ylabel("TC Idle (seconds)")
-    ax.set_title("TC Idle Time per Match (★=TG)", fontsize=10, fontweight='bold')
+    ax.set_ylabel("Housing Time (seconds)")
+    ax.set_title("Housing Time Range (Lower→Upper)", fontsize=10, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     
     # Bottom-left: eAPM per match with rolling average
@@ -311,8 +353,9 @@ def chart_performance_grid(stats: list[dict]):
     ax = axes[1, 1]
     
     durations = [s.get("duration", 0) / 60 for s in stats]  # Convert to minutes
+    colors_duration = [COLORS["victory"] if w else COLORS["defeat"] for w in winners]
     
-    bars = ax.bar(indices, durations, color=colors, edgecolor='white', linewidth=0.5)
+    bars = ax.bar(indices, durations, color=colors_duration, edgecolor='white', linewidth=0.5)
     # Mark TG matches with diamond
     for i, (dur, dip) in enumerate(zip(durations, diplomacies)):
         if dip == "TG":
@@ -619,9 +662,12 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     fav_civ_name = favorite_civ[0]
     fav_civ_pct = (favorite_civ[1] / n_matches * 100) if n_matches > 0 else 0
     
-    # TC Idle average
-    tc_idles = [s.get("tc_idle") for s in filtered_stats if s.get("tc_idle") is not None]
-    avg_tc_idle = round(safe_mean(tc_idles)) if tc_idles else 0
+    # TC Idle Effective average (range: lower - upper)
+    tc_idle_eff_lowers = [s.get("tc_idle_eff_lower") for s in filtered_stats if s.get("tc_idle_eff_lower") is not None]
+    avg_tc_idle_eff_lower = round(safe_mean(tc_idle_eff_lowers)) if tc_idle_eff_lowers else 0
+    
+    tc_idle_eff_uppers = [s.get("tc_idle_eff_upper") for s in filtered_stats if s.get("tc_idle_eff_upper") is not None]
+    avg_tc_idle_eff_upper = round(safe_mean(tc_idle_eff_uppers)) if tc_idle_eff_uppers else 0
     
     # Game duration average
     durations = [s.get("duration") for s in filtered_stats if s.get("duration") and s.get("duration") != 0]
@@ -713,9 +759,10 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     # KPI cards row 2
     y_pos = pdf.get_y()
     
-    # Avg TC Idle
+    # TC Idle Effective (range)
+    tc_idle_eff_text = f"{avg_tc_idle_eff_lower}-{avg_tc_idle_eff_upper}s" if avg_tc_idle_eff_lower or avg_tc_idle_eff_upper else "--"
     draw_kpi_card(pdf, start_x, y_pos, card_w, card_h, 
-                  "Avg TC Idle", f"{avg_tc_idle}s" if avg_tc_idle else "--", (52, 152, 219))
+                  "TC Idle Effective", tc_idle_eff_text, (230, 126, 34))
     
     # Avg Duration
     draw_kpi_card(pdf, start_x + card_w + spacing, y_pos, card_w, card_h, 
@@ -873,15 +920,21 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
             elif diff > 10:
                 patterns.append(f"• Feudal times getting slower")
     
-    # TC discipline
-    if avg_tc_idle == 0:
-        patterns.append(f"• Perfect TC discipline (0s idle)")
-    elif avg_tc_idle < 10:
-        patterns.append(f"• Good TC discipline ({avg_tc_idle}s idle avg)")
-    elif avg_tc_idle > 60:
-        patterns.append(f"• Poor TC discipline ({avg_tc_idle}s idle avg)")
+    # Housing discipline
+    housed_lowers = [s.get("housed_lower", 0) for s in filtered_stats]
+    housed_uppers = [s.get("housed_upper", 0) for s in filtered_stats]
+    mean_lower = safe_mean(housed_lowers)
+    mean_upper = safe_mean(housed_uppers)
+    avg_housed_lower = round(mean_lower) if mean_lower is not None else 0
+    avg_housed_upper = round(mean_upper) if mean_upper is not None else 0
+    
+    if avg_housed_lower == 0 and avg_housed_upper == 0:
+        patterns.append(f"• Perfect housing discipline (0s housed)")
+    elif avg_housed_upper > 2 * avg_housed_lower and avg_housed_lower > 0:
+        patterns.append(f"• Housing discipline: {avg_housed_lower}-{avg_housed_upper}s per game (wide range — many undetected housing events)")
     else:
-        patterns.append(f"• Average TC idle: {avg_tc_idle}s")
+        patterns.append(f"• Housing discipline: {avg_housed_lower}-{avg_housed_upper}s per game" + 
+                       (" (tight range = high confidence)" if avg_housed_upper < avg_housed_lower * 1.5 else ""))
     
     # Aggression profile
     if avg_duration_min < 25:
