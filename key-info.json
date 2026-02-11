@@ -1,20 +1,20 @@
 {
   "repo": "agelytics",
   "version": "1.1.0-dev",
-  "lastUpdated": "2026-02-11",
+  "lastUpdated": "2026-02-11T11:56",
   "keyInfo": [
     {
       "id": "K001",
-      "info": "Replay download URL: https://aoe.ms/replay/?gameId={matchId}&profileId={profileId} — redirects to api.ageofempires.com/api/GameStats/AgeII/GetMatchReplay/. No auth needed. Tested: 499KB replay downloaded successfully.",
+      "info": "Replay download URL: https://aoe.ms/replay/?gameId={matchId}&profileId={profileId} \u2014 redirects to api.ageofempires.com/api/GameStats/AgeII/GetMatchReplay/. No auth needed. Tested: 499KB replay downloaded successfully.",
       "importance": "critical",
       "status": "confirmed",
       "date": "2026-02-11",
       "source": "aoe2insights.com HTML inspection + curl test",
-      "context": "Bruno sugeriu olhar AgeAlyser (byrnesy924/AgeAlyser_2) pra download de replays. Não tinha — mas levou ao DE Replays Manager (Dropbox, não MS) → aoe2insights HTML → URL descoberta. Reddit confirmou: replays ficam em servidor Microsoft, link construído com gameId+profileId."
+      "context": "Bruno sugeriu olhar AgeAlyser (byrnesy924/AgeAlyser_2) pra download de replays. N\u00e3o tinha \u2014 mas levou ao DE Replays Manager (Dropbox, n\u00e3o MS) \u2192 aoe2insights HTML \u2192 URL descoberta. Reddit confirmou: replays ficam em servidor Microsoft, link constru\u00eddo com gameId+profileId."
     },
     {
       "id": "K002",
-      "info": "aoe2companion API (PRIMARY): data.aoe2companion.com/api/matches?profile_ids={id}&count={n} — paginated, full history, correct civ names natively. 300 match limit covers full recent history (~5s fetch).",
+      "info": "aoe2companion API (PRIMARY): data.aoe2companion.com/api/matches?profile_ids={id}&count={n} \u2014 paginated, full history, correct civ names natively. 300 match limit covers full recent history (~5s fetch).",
       "importance": "critical",
       "status": "active",
       "date": "2026-02-10",
@@ -39,7 +39,7 @@
     },
     {
       "id": "K005",
-      "info": "Live watcher: integrations/openclaw/live_watcher.py — monitors savegame dir for new MP Replay files. Triggers API scouting on new game detected.",
+      "info": "Live watcher: integrations/openclaw/live_watcher.py \u2014 monitors savegame dir for new MP Replay files. Triggers API scouting on new game detected.",
       "importance": "high",
       "status": "active",
       "date": "2026-02-10",
@@ -47,7 +47,7 @@
     },
     {
       "id": "K006",
-      "info": "Callback handler: integrations/openclaw/callback.sh — routes Telegram inline button callbacks (agelytics_report_{id}, agelytics_analyze_{id}, agelytics_deep_{id}, etc).",
+      "info": "Callback handler: integrations/openclaw/callback.sh \u2014 routes Telegram inline button callbacks (agelytics_report_{id}, agelytics_analyze_{id}, agelytics_deep_{id}, etc).",
       "importance": "medium",
       "status": "active",
       "date": "2026-02-10",
@@ -124,16 +124,16 @@
       "status": "planned",
       "date": "2026-02-11",
       "source": "Bruno + Tiuito design",
-      "context": "Killer feature que nenhum concorrente tem (Overwolf/Age of Duck fazem só stats agregados). Replay real do oponente = build orders, timings, padrões reais — não estimativas."
+      "context": "Killer feature que nenhum concorrente tem (Overwolf/Age of Duck fazem s\u00f3 stats agregados). Replay real do oponente = build orders, timings, padr\u00f5es reais \u2014 n\u00e3o estimativas."
     },
     {
       "id": "K016",
-      "info": "v1.2.1 Tactical Impact: use opponent's replay baseline as natural control group for causal inference. Bruno's idea — genuinely novel.",
+      "info": "v1.2.1 Tactical Impact: use opponent's replay baseline as natural control group for causal inference. Bruno's idea \u2014 genuinely novel.",
       "importance": "high",
       "status": "planned",
       "date": "2026-02-10",
       "source": "Bruno idea",
-      "context": "Baseline pessoal do oponente como controle natural → impacto causal com confidence scoring. Genuinamente inédito em analytics de RTS."
+      "context": "Baseline pessoal do oponente como controle natural \u2192 impacto causal com confidence scoring. Genuinamente in\u00e9dito em analytics de RTS."
     },
     {
       "id": "K017",
@@ -165,15 +165,33 @@
       "importance": "high",
       "status": "active",
       "date": "2026-02-11",
-      "source": "Urubu test — Bruno confirmed correct player"
+      "source": "Urubu test \u2014 Bruno confirmed correct player"
     },
     {
       "id": "K021",
-      "info": "Scouting data priority: 1v1 RM first. If n<5, complement with team games + tag '⚠️ Inclui dados TG (amostra 1v1: n=X)'. Team data is noisier (pocket/flank roles, negotiated civs).",
+      "info": "Scouting data priority: 1v1 RM first. If n<5, complement with team games + tag '\u26a0\ufe0f Inclui dados TG (amostra 1v1: n=X)'. Team data is noisier (pocket/flank roles, negotiated civs).",
       "importance": "high",
       "status": "active",
       "date": "2026-02-11",
       "source": "Bruno decision"
+    },
+    {
+      "id": "K022",
+      "info": "Dual-bound housing: lower (heuristic 2+ houses) + upper (pop timeline - deaths). Reports MUST show range. Parser is unified (parser.py), but PDF renderers are separate (pdf_report.py, pdf_analysis.py, pdf_scouting.py) \u2014 all must consume the same housing fields.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-11",
+      "source": "brainstorm with Bruno",
+      "context": "Bruno: toda evolu\u00e7\u00e3o deve ser aplicada a implementa\u00e7\u00f5es similares. Engine unificado, reports separados. Match report p\u00f3s-jogo precisa ganhar mesmas m\u00e9tricas do scouting."
+    },
+    {
+      "id": "K023",
+      "info": "PDF engine unification planned: extract shared render logic (KPI cards, chart grids, text sections) into pdf_engine.py + template configs per report type. Do AFTER housing dual-bound is closed.",
+      "importance": "high",
+      "status": "planned",
+      "date": "2026-02-11",
+      "source": "Bruno decision",
+      "context": "Bruno confirmou: sistema de PDF \u00e9 exatamente o mesmo, s\u00f3 muda fonte e contexto. Unificar depois do housing."
     }
   ]
 }

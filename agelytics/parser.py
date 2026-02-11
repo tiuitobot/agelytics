@@ -533,6 +533,39 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                 result.setdefault("housed_time_lower", {})[pname] = round(housed_time_lower, 1)
                 result.setdefault("tc_idle_effective_lower", {})[pname] = round(total_idle + housed_time_lower, 1)
                 
+                # Lower bound by era
+                player_ages = []
+                for au in result.get("age_ups", []):
+                    if au.get("player") == pname:
+                        player_ages.append((au["age"], au["timestamp_secs"]))
+                
+                era_boundaries = {"Dark": 0.0, "Feudal": None, "Castle": None, "Imperial": None}
+                for age_name, ts in player_ages:
+                    if "Feudal" in age_name: era_boundaries["Feudal"] = ts
+                    elif "Castle" in age_name: era_boundaries["Castle"] = ts
+                    elif "Imperial" in age_name: era_boundaries["Imperial"] = ts
+                
+                def _get_era(t):
+                    if era_boundaries["Imperial"] and t >= era_boundaries["Imperial"]: return "Imperial"
+                    if era_boundaries["Castle"] and t >= era_boundaries["Castle"]: return "Castle"
+                    if era_boundaries["Feudal"] and t >= era_boundaries["Feudal"]: return "Feudal"
+                    return "Dark"
+                
+                housed_lower_by_age = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
+                for i in range(1, len(vill_only)):
+                    gap = vill_only[i] - vill_only[i - 1]
+                    if gap > VILL_TRAIN_TIME + 5:
+                        gap_start = vill_only[i - 1]
+                        gap_end = vill_only[i]
+                        houses_in_gap = sum(1 for ht in house_times_p if gap_start - 5 <= ht <= gap_end + 10)
+                        if houses_in_gap >= 2:
+                            excess = max(0, gap - VILL_TRAIN_TIME)
+                            era = _get_era((gap_start + gap_end) / 2)
+                            housed_lower_by_age[era] += excess
+                
+                housed_lower_by_age = {k: round(v, 1) for k, v in housed_lower_by_age.items()}
+                result.setdefault("housed_time_lower_by_age", {})[pname] = housed_lower_by_age
+                
                 # ──────────────────────────────────────────────────────────
                 # UPPER BOUND: Pop timeline (deterministic)
                 # ──────────────────────────────────────────────────────────
@@ -683,16 +716,20 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                             d += delta
                     return d
                 
-                # 4. Calculate housed periods
+                # 4. Calculate housed periods (total + by era)
                 # Sample timeline every second
                 housed_seconds = 0.0
+                housed_upper_by_age = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
                 for t in range(0, int(game_end_time) + 1):
                     pop_alive = pop_produced_at(t) - deaths_at(t)
                     cap = capacity_at(t)
                     if pop_alive >= cap:
                         housed_seconds += 1.0
+                        housed_upper_by_age[_get_era(t)] += 1.0
                 
+                housed_upper_by_age = {k: round(v, 1) for k, v in housed_upper_by_age.items()}
                 result.setdefault("housed_time_upper", {})[pname] = round(housed_seconds, 1)
+                result.setdefault("housed_time_upper_by_age", {})[pname] = housed_upper_by_age
                 result.setdefault("tc_idle_effective_upper", {})[pname] = round(total_idle + housed_seconds, 1)
     
     except Exception:
