@@ -22,7 +22,8 @@ These files are in the OpenClaw workspace (not this repo), as they depend on the
 
 1. Install Agelytics: `pip install -e /path/to/agelytics`
 2. Copy `.env.example` to `.env` and set `TELEGRAM_BOT_TOKEN`
-3. Add to crontab:
+3. Ensure `python3` is available (scripts assume `python3`, not `python`).
+4. Add to crontab:
    ```bash
    */2 * * * * /path/to/agelytics/integrations/openclaw/watch_cron.sh
    ```

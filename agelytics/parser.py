@@ -489,6 +489,11 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                 tc_free_at = 0.0  # when the TC queue finishes
                 total_idle = 0.0
                 
+                # TC idle breakdown by gap category
+                micro_idle = {"count": 0, "total": 0.0}   # 5-15s
+                macro_idle = {"count": 0, "total": 0.0}   # 15-60s
+                afk_idle = {"count": 0, "total": 0.0}     # 60s+
+                
                 for click_time, duration, task_type in tasks:
                     num_tcs = _tc_count_at(click_time)
                     
@@ -497,6 +502,16 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                         idle_gap = click_time - tc_free_at
                         if idle_gap > 5:
                             total_idle += idle_gap
+                            # Categorize gap
+                            if idle_gap < 15:
+                                micro_idle["count"] += 1
+                                micro_idle["total"] += idle_gap
+                            elif idle_gap < 60:
+                                macro_idle["count"] += 1
+                                macro_idle["total"] += idle_gap
+                            else:
+                                afk_idle["count"] += 1
+                                afk_idle["total"] += idle_gap
                         # Task starts now
                         tc_free_at = click_time + (duration / num_tcs)
                     else:
@@ -504,6 +519,238 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                         tc_free_at += (duration / num_tcs)
                 
                 result["tc_idle"][pname] = round(total_idle, 1)
+                result.setdefault("tc_idle_breakdown", {})[pname] = {
+                    "micro": {"count": micro_idle["count"], "total": round(micro_idle["total"], 1)},
+                    "macro": {"count": macro_idle["count"], "total": round(macro_idle["total"], 1)},
+                    "afk": {"count": afk_idle["count"], "total": round(afk_idle["total"], 1)},
+                }
+                
+                # ──────────────────────────────────────────────────────────
+                # LOWER BOUND: Heuristic housed time (gap-based)
+                # ──────────────────────────────────────────────────────────
+                house_times_p = sorted([
+                    b["timestamp_secs"] for b in building_timestamps.get(pname, [])
+                    if b["building"] == "House"
+                ])
+                
+                housed_time_lower = 0.0
+                vill_only = sorted([t for t, d, tt in tasks if tt == "vill"])
+                for i in range(1, len(vill_only)):
+                    gap = vill_only[i] - vill_only[i - 1]
+                    if gap > VILL_TRAIN_TIME + 5:  # Gap longer than 1 vill train = suspicious
+                        gap_start = vill_only[i - 1]
+                        gap_end = vill_only[i]
+                        # Count houses built during or shortly after this gap
+                        houses_in_gap = sum(
+                            1 for ht in house_times_p
+                            if gap_start - 5 <= ht <= gap_end + 10
+                        )
+                        if houses_in_gap >= 2:
+                            # Subtract normal vill train time — the excess is housed time
+                            excess = gap - VILL_TRAIN_TIME
+                            housed_time_lower += max(0, excess)
+                
+                result.setdefault("housed_time_lower", {})[pname] = round(housed_time_lower, 1)
+                result.setdefault("tc_idle_effective_lower", {})[pname] = round(total_idle + housed_time_lower, 1)
+                
+                # Lower bound by era
+                player_ages = []
+                for au in result.get("age_ups", []):
+                    if au.get("player") == pname:
+                        player_ages.append((au["age"], au["timestamp_secs"]))
+                
+                era_boundaries = {"Dark": 0.0, "Feudal": None, "Castle": None, "Imperial": None}
+                for age_name, ts in player_ages:
+                    if "Feudal" in age_name: era_boundaries["Feudal"] = ts
+                    elif "Castle" in age_name: era_boundaries["Castle"] = ts
+                    elif "Imperial" in age_name: era_boundaries["Imperial"] = ts
+                
+                def _get_era(t):
+                    if era_boundaries["Imperial"] and t >= era_boundaries["Imperial"]: return "Imperial"
+                    if era_boundaries["Castle"] and t >= era_boundaries["Castle"]: return "Castle"
+                    if era_boundaries["Feudal"] and t >= era_boundaries["Feudal"]: return "Feudal"
+                    return "Dark"
+                
+                housed_lower_by_age = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
+                for i in range(1, len(vill_only)):
+                    gap = vill_only[i] - vill_only[i - 1]
+                    if gap > VILL_TRAIN_TIME + 5:
+                        gap_start = vill_only[i - 1]
+                        gap_end = vill_only[i]
+                        houses_in_gap = sum(1 for ht in house_times_p if gap_start - 5 <= ht <= gap_end + 10)
+                        if houses_in_gap >= 2:
+                            excess = max(0, gap - VILL_TRAIN_TIME)
+                            era = _get_era((gap_start + gap_end) / 2)
+                            housed_lower_by_age[era] += excess
+                
+                housed_lower_by_age = {k: round(v, 1) for k, v in housed_lower_by_age.items()}
+                result.setdefault("housed_time_lower_by_age", {})[pname] = housed_lower_by_age
+                
+                # ──────────────────────────────────────────────────────────
+                # UPPER BOUND: Pop timeline (deterministic)
+                # ──────────────────────────────────────────────────────────
+                UNIT_TRAIN_TIMES = {
+                    "Villager": 25, "Militia": 21, "Man-at-Arms": 21, "Long Swordsman": 21,
+                    "Two-Handed Swordsman": 21, "Champion": 21, "Archer": 35, "Crossbowman": 35,
+                    "Arbalester": 35, "Skirmisher": 22, "Elite Skirmisher": 22, "Scout Cavalry": 30,
+                    "Light Cavalry": 30, "Hussar": 30, "Spearman": 22, "Pikeman": 22, "Halberdier": 22,
+                    "Knight": 30, "Cavalier": 30, "Paladin": 30, "Camel Rider": 22, "Heavy Camel Rider": 22,
+                    "Battering Ram": 36, "Capped Ram": 36, "Siege Ram": 36, "Mangonel": 46,
+                    "Onager": 46, "Siege Onager": 46, "Scorpion": 30, "Heavy Scorpion": 30,
+                    "Bombard Cannon": 56, "Trebuchet": 50,
+                }
+                HOUSE_BUILD_TIME = 25
+                TC_BUILD_TIME = 150
+                
+                # 1. Build capacity timeline
+                capacity_events = [(0, 5)]  # Start with 5 (initial TC)
+                
+                # House completions
+                for ht in house_times_p:
+                    capacity_events.append((ht + HOUSE_BUILD_TIME, 5))
+                
+                # TC completions
+                for tc_ts in sorted(tc_build_times.get(pname, [])):
+                    capacity_events.append((tc_ts + TC_BUILD_TIME, 5))
+                
+                capacity_events.sort()
+                
+                # Build capacity(t) function
+                def capacity_at(t):
+                    cap = 5
+                    for event_t, delta in capacity_events:
+                        if event_t <= t:
+                            cap += delta
+                    return cap
+                
+                # 2. Build pop_produced timeline
+                pop_produced_events = [(0, 4)]  # Start: scout(1) + vills(3) = 4
+                
+                # Track which object_ids are villagers (from Queue commands)
+                villager_object_ids = set()
+                
+                # Collect all Queue commands to build pop timeline
+                for inp in match.inputs:
+                    try:
+                        p = inp.player.name if hasattr(inp.player, "name") else None
+                        if p != pname:
+                            continue
+                        ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
+                        
+                        if inp.type == "Queue" and hasattr(inp, "payload") and inp.payload:
+                            unit = inp.payload.get("unit")
+                            if not unit:
+                                continue
+                            
+                            train_time = UNIT_TRAIN_TIMES.get(unit, 30)
+                            amount = inp.payload.get("amount", 1)
+                            
+                            # Track villager object_ids
+                            if unit == "Villager":
+                                obj_id = inp.payload.get("object_id")
+                                if obj_id:
+                                    villager_object_ids.add(obj_id)
+                            
+                            # Add completion events (stagger if amount > 1)
+                            for i in range(amount):
+                                completion_time = ts + train_time + (i * train_time)
+                                pop_produced_events.append((completion_time, 1))
+                    except Exception:
+                        continue
+                
+                pop_produced_events.sort()
+                
+                # Build pop_produced(t) function
+                def pop_produced_at(t):
+                    pop = 4
+                    for event_t, delta in pop_produced_events:
+                        if event_t <= t:
+                            pop += delta
+                    return pop
+                
+                # 3. Build deaths timeline
+                death_events = []
+                
+                # Collect Delete commands (exact deaths)
+                for inp in match.inputs:
+                    try:
+                        p = inp.player.name if hasattr(inp.player, "name") else None
+                        if p != pname:
+                            continue
+                        ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
+                        
+                        if inp.type == "Delete":
+                            death_events.append((ts, 1))
+                    except Exception:
+                        continue
+                
+                # Military death estimation (simplified)
+                # Track last_action_time for non-villager objects
+                object_last_action = {}
+                
+                # Get game duration
+                game_end_time = 0
+                try:
+                    duration_ms = summary.get_duration() or 0
+                    game_end_time = duration_ms / 1000.0 if duration_ms else 0
+                except Exception:
+                    # Fallback: find max timestamp from inputs
+                    try:
+                        all_timestamps = [inp.timestamp.total_seconds() for inp in match.inputs 
+                                         if hasattr(inp, 'timestamp')]
+                        game_end_time = max(all_timestamps) if all_timestamps else 0
+                    except Exception:
+                        game_end_time = 0
+                
+                for inp in match.inputs:
+                    try:
+                        p = inp.player.name if hasattr(inp.player, "name") else None
+                        if p != pname:
+                            continue
+                        ts = inp.timestamp.total_seconds() if hasattr(inp.timestamp, "total_seconds") else 0
+                        
+                        # Track objects that receive action commands
+                        obj_id = None
+                        if hasattr(inp, "payload") and inp.payload:
+                            obj_id = inp.payload.get("object_id")
+                        
+                        if obj_id and inp.type in ("Move", "Attack Move", "Target", "Stance"):
+                            # Only track military (not villagers, not buildings)
+                            if obj_id not in villager_object_ids:
+                                object_last_action[obj_id] = ts
+                    except Exception:
+                        continue
+                
+                # Estimate military deaths: last_action_time >120s before game end
+                for obj_id, last_ts in object_last_action.items():
+                    if game_end_time - last_ts > 120:
+                        death_events.append((last_ts + 60, 1))  # Grace period
+                
+                death_events.sort()
+                
+                # Build deaths(t) function
+                def deaths_at(t):
+                    d = 0
+                    for event_t, delta in death_events:
+                        if event_t <= t:
+                            d += delta
+                    return d
+                
+                # 4. Calculate housed periods (total + by era)
+                # Sample timeline every second
+                housed_seconds = 0.0
+                housed_upper_by_age = {"Dark": 0.0, "Feudal": 0.0, "Castle": 0.0, "Imperial": 0.0}
+                for t in range(0, int(game_end_time) + 1):
+                    pop_alive = pop_produced_at(t) - deaths_at(t)
+                    cap = capacity_at(t)
+                    if pop_alive >= cap:
+                        housed_seconds += 1.0
+                        housed_upper_by_age[_get_era(t)] += 1.0
+                
+                housed_upper_by_age = {k: round(v, 1) for k, v in housed_upper_by_age.items()}
+                result.setdefault("housed_time_upper", {})[pname] = round(housed_seconds, 1)
+                result.setdefault("housed_time_upper_by_age", {})[pname] = housed_upper_by_age
+                result.setdefault("tc_idle_effective_upper", {})[pname] = round(total_idle + housed_seconds, 1)
     
     except Exception:
         # If detailed extraction fails entirely, return empty data

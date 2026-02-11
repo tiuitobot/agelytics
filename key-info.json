@@ -1,0 +1,206 @@
+{
+  "repo": "agelytics",
+  "version": "1.1.0-dev",
+  "lastUpdated": "2026-02-11T11:56",
+  "keyInfo": [
+    {
+      "id": "K001",
+      "info": "Replay download URL: https://aoe.ms/replay/?gameId={matchId}&profileId={profileId} \u2014 redirects to api.ageofempires.com/api/GameStats/AgeII/GetMatchReplay/. No auth needed. Tested: 499KB replay downloaded successfully.",
+      "importance": "critical",
+      "status": "confirmed",
+      "date": "2026-02-11",
+      "source": "aoe2insights.com HTML inspection + curl test",
+      "context": "Bruno sugeriu olhar AgeAlyser (byrnesy924/AgeAlyser_2) pra download de replays. N\u00e3o tinha \u2014 mas levou ao DE Replays Manager (Dropbox, n\u00e3o MS) \u2192 aoe2insights HTML \u2192 URL descoberta. Reddit confirmou: replays ficam em servidor Microsoft, link constru\u00eddo com gameId+profileId."
+    },
+    {
+      "id": "K002",
+      "info": "aoe2companion API (PRIMARY): data.aoe2companion.com/api/matches?profile_ids={id}&count={n} \u2014 paginated, full history, correct civ names natively. 300 match limit covers full recent history (~5s fetch).",
+      "importance": "critical",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "API testing",
+      "context": "Switchou de WorldsEdge (10 matches, civ names errados) pra aoe2companion (141+ matches, paginado, civ names corretos). aoe2.net morreu."
+    },
+    {
+      "id": "K003",
+      "info": "WorldsEdge API civ IDs are alphabetical 0-indexed, NOT aoe2.net IDs. Cross-referenced 9/9 confirmed. Use aoe2companion for civ names instead.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "manual cross-reference"
+    },
+    {
+      "id": "K004",
+      "info": "Overlay server: port 5555, agelytics/overlay_server.py (FastAPI). Access at http://localhost:5555/overlay. Branch: feature/scouting-overlay (~18 commits).",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "implementation"
+    },
+    {
+      "id": "K005",
+      "info": "Live watcher: integrations/openclaw/live_watcher.py \u2014 monitors savegame dir for new MP Replay files. Triggers API scouting on new game detected.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "implementation"
+    },
+    {
+      "id": "K006",
+      "info": "Callback handler: integrations/openclaw/callback.sh \u2014 routes Telegram inline button callbacks (agelytics_report_{id}, agelytics_analyze_{id}, agelytics_deep_{id}, etc).",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "implementation"
+    },
+    {
+      "id": "K007",
+      "info": "Deep Coach style: forensic phase-by-phase format. Style guide at knowledge/aoe2/deep-coach-style-guide.md. NOT generic timeline+insights.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "Bruno feedback + style guide"
+    },
+    {
+      "id": "K008",
+      "info": "recordGame field in aoe2companion API response indicates if replay exists on Microsoft servers. true = downloadable via aoe.ms URL.",
+      "importance": "high",
+      "status": "confirmed",
+      "date": "2026-02-11",
+      "source": "API response inspection"
+    },
+    {
+      "id": "K009",
+      "info": "Overlay shows pre-game scouting only (10 min), then hides. In-game timers = borderline cheating per Bruno's call.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "Bruno decision"
+    },
+    {
+      "id": "K010",
+      "info": "Bruno's AoE2 profile: blzulian, profile_id 24635675, Steam ID 76561198028659538, ELO ~619, main civ Franks.",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "Bruno"
+    },
+    {
+      "id": "K011",
+      "info": "Savegame directory: /mnt/c/Users/Administrador/Games/Age of Empires 2 DE/76561198028659538/savegame/",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "system inspection"
+    },
+    {
+      "id": "K012",
+      "info": "Pandas + seaborn OK in Agelytics (Bruno reversed previous constraint). Used in PDF reports.",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-09",
+      "source": "Bruno decision"
+    },
+    {
+      "id": "K013",
+      "info": "Semver from v1.0.0. MAJOR.MINOR.PATCH. CHANGELOG.md in Keep a Changelog format.",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-09",
+      "source": "Bruno decision"
+    },
+    {
+      "id": "K014",
+      "info": "v1.1.0 pending: auto-refresh JS (setInterval polling), watcher full automation, branch merge to master.",
+      "importance": "high",
+      "status": "planned",
+      "date": "2026-02-11",
+      "source": "sprint planning"
+    },
+    {
+      "id": "K015",
+      "info": "Opponent replay scouting (killer feature): download 20-50 recent replays of opponent, parse with mgz, show real build order/timing/pattern data in overlay.",
+      "importance": "critical",
+      "status": "planned",
+      "date": "2026-02-11",
+      "source": "Bruno + Tiuito design",
+      "context": "Killer feature que nenhum concorrente tem (Overwolf/Age of Duck fazem s\u00f3 stats agregados). Replay real do oponente = build orders, timings, padr\u00f5es reais \u2014 n\u00e3o estimativas."
+    },
+    {
+      "id": "K016",
+      "info": "v1.2.1 Tactical Impact: use opponent's replay baseline as natural control group for causal inference. Bruno's idea \u2014 genuinely novel.",
+      "importance": "high",
+      "status": "planned",
+      "date": "2026-02-10",
+      "source": "Bruno idea",
+      "context": "Baseline pessoal do oponente como controle natural \u2192 impacto causal com confidence scoring. Genuinamente in\u00e9dito em analytics de RTS."
+    },
+    {
+      "id": "K017",
+      "info": "Civ KB complete: 45/45 civs in knowledge/aoe2/civs/. Matchup lookup functional.",
+      "importance": "medium",
+      "status": "active",
+      "date": "2026-02-10",
+      "source": "implementation"
+    },
+    {
+      "id": "K018",
+      "info": "Not all replays available on Microsoft servers. Older games get removed frequently. Check recordGame field before attempting download.",
+      "importance": "high",
+      "status": "confirmed",
+      "date": "2026-02-11",
+      "source": "aoe2insights FAQ"
+    },
+    {
+      "id": "K019",
+      "info": "MS rate limit: 2s delay between downloads is stable. 0.5s causes 429 after ~7 requests. Retry backoff: 5s/10s/15s on 429.",
+      "importance": "high",
+      "status": "confirmed",
+      "date": "2026-02-11",
+      "source": "empirical testing with Urubu (19/20 replays, 38MB)"
+    },
+    {
+      "id": "K020",
+      "info": "Player disambiguation: WorldsEdge search returns multiple players with same name. search_player picks most active (games+rating). 4 'Urubu' players found, correct one auto-selected.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-11",
+      "source": "Urubu test \u2014 Bruno confirmed correct player"
+    },
+    {
+      "id": "K021",
+      "info": "Scouting data priority: 1v1 RM first. If n<5, complement with team games + tag '\u26a0\ufe0f Inclui dados TG (amostra 1v1: n=X)'. Team data is noisier (pocket/flank roles, negotiated civs).",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-11",
+      "source": "Bruno decision"
+    },
+    {
+      "id": "K022",
+      "info": "Dual-bound housing: lower (heuristic 2+ houses) + upper (pop timeline - deaths). Reports MUST show range. Parser is unified (parser.py), but PDF renderers are separate (pdf_report.py, pdf_analysis.py, pdf_scouting.py) \u2014 all must consume the same housing fields.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-11",
+      "source": "brainstorm with Bruno",
+      "context": "Bruno: toda evolu\u00e7\u00e3o deve ser aplicada a implementa\u00e7\u00f5es similares. Engine unificado, reports separados. Match report p\u00f3s-jogo precisa ganhar mesmas m\u00e9tricas do scouting."
+    },
+    {
+      "id": "K023",
+      "info": "PDF engine unification planned: extract shared render logic (KPI cards, chart grids, text sections) into pdf_engine.py + template configs per report type. Do AFTER housing dual-bound is closed.",
+      "importance": "high",
+      "status": "planned",
+      "date": "2026-02-11",
+      "source": "Bruno decision",
+      "context": "Bruno confirmou: sistema de PDF \u00e9 exatamente o mesmo, s\u00f3 muda fonte e contexto. Unificar depois do housing."
+    },
+    {
+      "id": "K024",
+      "info": "Metrics methodology doc at documentation/metrics-methodology.md. RULE: Any metric change MUST update this file. Reports must show badges (\u2705/\ud83d\udd2c/\ud83d\udcd0) and disclaimer page.",
+      "importance": "critical",
+      "status": "active",
+      "date": "2026-02-11",
+      "source": "Bruno requirement",
+      "context": "Bruno (economist rigor): all metrics need formal definition, classification (deterministic/experimental/derived), and methodology disclaimers in reports."
+    }
+  ]
+}
