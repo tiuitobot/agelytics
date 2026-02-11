@@ -67,6 +67,11 @@ class MatchContext(BaseModel):
     opponent_name: str
     opponent_civ: str
     self_civ: str
+    opponent_rating: int | None = None
+    opponent_profile_id: int | None = None
+    opponent_country: str | None = None
+    map: str | None = None
+    match_id: int | None = None
 
 
 @app.post("/api/match-context")
