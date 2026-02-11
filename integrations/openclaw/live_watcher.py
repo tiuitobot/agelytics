@@ -5,7 +5,7 @@ When detected, polls aoe2companion API for the current match details.
 Pushes opponent info + civs to the overlay server.
 
 Usage:
-    python -m integrations.openclaw.live_watcher [--poll-interval 5] [--server http://localhost:5555]
+    python3 -m integrations.openclaw.live_watcher [--poll-interval 5] [--server http://localhost:5555]
 """
 
 import argparse

@@ -207,7 +207,7 @@ if __name__ == "__main__":
     )
 
     if len(sys.argv) < 2:
-        print("Usage: python -m agelytics.replay_downloader <opponent_profile_id> [count]")
+        print("Usage: python3 -m agelytics.replay_downloader <opponent_profile_id> [count]")
         sys.exit(1)
 
     profile_id = int(sys.argv[1])
