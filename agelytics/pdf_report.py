@@ -546,6 +546,34 @@ def generate_match_pdf(match, output_path, player_name=None):
         assess = "good" if total < 300 else "warn" if total < 600 else "bad"
         pdf.data_line(p["name"], f"{', '.join(parts)}", f"(Total: {fmt(total)})", assessment=assess)
 
+    # TC idle breakdown + effective range (if available)
+    breakdown = match.get("tc_idle_breakdown", {})
+    tc_eff_lower = match.get("tc_idle_effective_lower", {})
+    tc_eff_upper = match.get("tc_idle_effective_upper", {})
+    if breakdown or tc_eff_lower or tc_eff_upper:
+        pdf.ln(1)
+        pdf.subsection("Idle Breakdown")
+        for p in players:
+            pname = p["name"]
+            pbreak = breakdown.get(pname, {}) if isinstance(breakdown, dict) else {}
+            micro = pbreak.get("micro", {})
+            macro = pbreak.get("macro", {})
+            afk = pbreak.get("afk", {})
+            if pbreak:
+                pdf.txt(
+                    f"  {pname}: "
+                    f"micro {int(micro.get('count', 0))}x/{fmt(micro.get('total', 0))}, "
+                    f"macro {int(macro.get('count', 0))}x/{fmt(macro.get('total', 0))}, "
+                    f"AFK {int(afk.get('count', 0))}x/{fmt(afk.get('total', 0))}"
+                )
+
+            low = tc_eff_lower.get(pname) if isinstance(tc_eff_lower, dict) else None
+            high = tc_eff_upper.get(pname) if isinstance(tc_eff_upper, dict) else None
+            if low is not None or high is not None:
+                low_fmt = fmt(low if low is not None else 0)
+                high_fmt = fmt(high if high is not None else 0)
+                pdf.txt(f"    TC Idle Effective: {low_fmt} - {high_fmt}")
+
     # ═══════════════════════════════════════════════════════════
     # PAGE 2: ECONOMY
     # ═══════════════════════════════════════════════════════════

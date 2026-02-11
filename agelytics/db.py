@@ -122,6 +122,11 @@ def _migrate(conn: sqlite3.Connection):
         ("match_players", "production_buildings_json", "TEXT"),
         ("match_players", "housed_count", "INTEGER"),
         ("match_players", "wall_tiles_json", "TEXT"),
+        ("match_players", "tc_idle_breakdown_json", "TEXT"),
+        ("match_players", "housed_time_lower", "REAL"),
+        ("match_players", "housed_time_upper", "REAL"),
+        ("match_players", "tc_idle_effective_lower", "REAL"),
+        ("match_players", "tc_idle_effective_upper", "REAL"),
     ]
     
     for table, col, col_type in migrations:
@@ -157,6 +162,11 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
         production_buildings_data = match.get("production_buildings_by_age", {})
         housed_count_data = match.get("housed_count", {})
         wall_tiles_data = match.get("wall_tiles_by_age", {})
+        tc_idle_breakdown_data = match.get("tc_idle_breakdown", {})
+        housed_time_lower_data = match.get("housed_time_lower", {})
+        housed_time_upper_data = match.get("housed_time_upper", {})
+        tc_idle_effective_lower_data = match.get("tc_idle_effective_lower", {})
+        tc_idle_effective_upper_data = match.get("tc_idle_effective_upper", {})
         
         for p in match["players"]:
             player_name = p["name"]
@@ -189,6 +199,12 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
             housed_count = housed_count_data.get(player_name)
             wall_tiles = wall_tiles_data.get(player_name, {})
             wall_tiles_json = json.dumps(wall_tiles) if wall_tiles else None
+            tc_idle_breakdown = tc_idle_breakdown_data.get(player_name, {})
+            tc_idle_breakdown_json = json.dumps(tc_idle_breakdown) if tc_idle_breakdown else None
+            housed_time_lower = housed_time_lower_data.get(player_name)
+            housed_time_upper = housed_time_upper_data.get(player_name)
+            tc_idle_effective_lower = tc_idle_effective_lower_data.get(player_name)
+            tc_idle_effective_upper = tc_idle_effective_upper_data.get(player_name)
             
             conn.execute("""
                 INSERT INTO match_players (match_id, name, number, civ_id, civ_name,
@@ -197,14 +213,18 @@ def insert_match(conn: sqlite3.Connection, match: dict) -> Optional[int]:
                                            military_timing_index, tc_count_final,
                                            opening_strategy, tc_idle_dark, tc_idle_feudal,
                                            tc_idle_castle, tc_idle_imperial,
-                                           production_buildings_json, housed_count, wall_tiles_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           production_buildings_json, housed_count, wall_tiles_json,
+                                           tc_idle_breakdown_json, housed_time_lower, housed_time_upper,
+                                           tc_idle_effective_lower, tc_idle_effective_upper)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 match_id, player_name, p["number"], p["civ_id"], p["civ_name"],
                 p["color_id"], 1 if p["winner"] else 0, p["user_id"],
                 p["elo"], p["eapm"], tc_idle, est_idle, farm_gap, mil_timing, tc_count_final,
                 opening, tc_idle_dark, tc_idle_feudal, tc_idle_castle, tc_idle_imperial,
                 prod_buildings_json, housed_count, wall_tiles_json,
+                tc_idle_breakdown_json, housed_time_lower, housed_time_upper,
+                tc_idle_effective_lower, tc_idle_effective_upper,
             ))
 
         # Insert detailed data if present
@@ -411,11 +431,16 @@ def _match_with_players(conn: sqlite3.Connection, match: dict) -> dict:
     match["_first_military_timestamp"] = {}
     match["_tc_build_timestamps"] = {}
     
-    # Reconstruct production_buildings_by_age, housed_count, and wall_tiles_by_age
+    # Reconstruct production_buildings_by_age, housed_count, wall_tiles_by_age and idle breakdowns
     import json
     production_buildings_by_age = {}
     housed_count = {}
     wall_tiles_by_age = {}
+    tc_idle_breakdown = {}
+    housed_time_lower = {}
+    housed_time_upper = {}
+    tc_idle_effective_lower = {}
+    tc_idle_effective_upper = {}
     for player in match["players"]:
         pname = player["name"]
         if player.get("production_buildings_json"):
@@ -430,10 +455,28 @@ def _match_with_players(conn: sqlite3.Connection, match: dict) -> dict:
                 wall_tiles_by_age[pname] = json.loads(player["wall_tiles_json"])
             except:
                 wall_tiles_by_age[pname] = {}
-    
+        if player.get("tc_idle_breakdown_json"):
+            try:
+                tc_idle_breakdown[pname] = json.loads(player["tc_idle_breakdown_json"])
+            except:
+                tc_idle_breakdown[pname] = {}
+        if player.get("housed_time_lower") is not None:
+            housed_time_lower[pname] = player["housed_time_lower"]
+        if player.get("housed_time_upper") is not None:
+            housed_time_upper[pname] = player["housed_time_upper"]
+        if player.get("tc_idle_effective_lower") is not None:
+            tc_idle_effective_lower[pname] = player["tc_idle_effective_lower"]
+        if player.get("tc_idle_effective_upper") is not None:
+            tc_idle_effective_upper[pname] = player["tc_idle_effective_upper"]
+
     match["production_buildings_by_age"] = production_buildings_by_age
     match["housed_count"] = housed_count
     match["wall_tiles_by_age"] = wall_tiles_by_age
+    match["tc_idle_breakdown"] = tc_idle_breakdown
+    match["housed_time_lower"] = housed_time_lower
+    match["housed_time_upper"] = housed_time_upper
+    match["tc_idle_effective_lower"] = tc_idle_effective_lower
+    match["tc_idle_effective_upper"] = tc_idle_effective_upper
     
     # Reconstruct metrics for each player
     # Use stored values from DB columns where available, compute rest
