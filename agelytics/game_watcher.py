@@ -13,14 +13,17 @@ import subprocess
 import json
 from pathlib import Path
 from typing import Optional
+from dotenv import load_dotenv
 
-# Paths
-SAVEGAME_DIR = Path(
-    "/mnt/c/Users/Administrador/Games/Age of Empires 2 DE"
-    "/76561198028659538/savegame"
-)
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+# Paths from .env
+SAVEGAME_DIR = Path(os.environ.get(
+    "AOE2_SAVEGAME_DIR",
+    "/mnt/c/Users/Administrador/Games/Age of Empires 2 DE/76561198028659538/savegame"
+))
 LIVE_REPLAY = SAVEGAME_DIR / "rec.aoe2record"
-SELF_NAME = "blzulian"  # Your in-game name
+SELF_NAME = os.environ.get("AOE2_PLAYER_NAME", "blzulian")
 
 # Polling intervals
 POLL_GAME_RUNNING = 0.5    # seconds — when game is running
@@ -64,10 +67,13 @@ def parse_opponent_from_replay() -> Optional[str]:
 
         players = []
         for p in h.de.players:
-            name = str(p.name) if hasattr(p.name, 'value') else str(p.name)
-            # Handle Container objects
-            if hasattr(p.name, 'value'):
-                name = p.name.value
+            name = p.name
+            # Handle Container/bytes/str
+            if hasattr(name, 'value'):
+                name = name.value
+            if isinstance(name, bytes):
+                name = name.decode('utf-8', errors='replace')
+            name = str(name).strip()
             if name and len(name) > 0:
                 players.append(name)
 
