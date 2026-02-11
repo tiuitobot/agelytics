@@ -45,10 +45,11 @@ def api_matchup(civ1: str, civ2: str):
 @app.get("/api/civ/{civ_name}")
 def api_civ(civ_name: str):
     """Get civ info."""
-    info = get_civ_info(civ_name.strip().title())
+    name = civ_name.strip().title()
+    info = get_civ_info(name)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Civ '{civ_name}' not in knowledge base")
-    return {"civ": civ_name.strip().title(), **info}
+        return {"civ": name, "pros": [], "cons": [], "unique_units": [], "bonuses": "No detailed data yet."}
+    return {"civ": name, **info}
 
 
 @app.get("/api/civs")
