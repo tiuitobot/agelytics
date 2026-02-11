@@ -44,16 +44,20 @@ def safe_mean(values):
     return sum(valid) / len(valid) if valid else None
 
 
-def trimmed_mean(values, trim_pct=0.1):
-    """Trimmed mean — remove top/bottom trim_pct of values."""
+def winsorized_mean(values, trim_pct=0.1):
+    """Winsorized mean — clip tails to percentile boundaries before averaging."""
     if not values or len(values) < 3:
         return safe_mean(values)
     sorted_vals = sorted(v for v in values if v is not None and not pd.isna(v) and v != 0)
     if not sorted_vals:
         return None
     trim_n = max(1, int(len(sorted_vals) * trim_pct))
-    trimmed = sorted_vals[trim_n:-trim_n] if trim_n < len(sorted_vals) // 2 else sorted_vals
-    return sum(trimmed) / len(trimmed) if trimmed else None
+    if trim_n >= len(sorted_vals) // 2:
+        return sum(sorted_vals) / len(sorted_vals)
+    low = sorted_vals[trim_n]
+    high = sorted_vals[-trim_n - 1]
+    winsorized = [min(max(v, low), high) for v in sorted_vals]
+    return sum(winsorized) / len(winsorized) if winsorized else None
 
 
 def safe_avg_seconds(values):
@@ -698,14 +702,14 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     losses = n_matches - wins
     win_rate = (wins / n_matches * 100) if n_matches > 0 else 0
     
-    # Feudal time average (trimmed mean)
+    # Feudal time average (winsorized mean)
     feudal_times = [s.get("feudal") for s in filtered_stats if s.get("feudal") and s.get("feudal") != 0]
-    avg_feudal_val = trimmed_mean(feudal_times)
+    avg_feudal_val = winsorized_mean(feudal_times)
     avg_feudal = fmt(avg_feudal_val) if avg_feudal_val else "--:--"
     
-    # eAPM average (trimmed mean)
+    # eAPM average (winsorized mean)
     eapms = [s.get("eapm") for s in filtered_stats if s.get("eapm") and s.get("eapm") != 0]
-    avg_eapm = int(trimmed_mean(eapms)) if eapms else 0
+    avg_eapm = int(winsorized_mean(eapms)) if eapms else 0
     
     # Favorite civ
     civ_counts = Counter(s["civ"] for s in filtered_stats if s.get("civ"))
@@ -713,16 +717,16 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     fav_civ_name = favorite_civ[0]
     fav_civ_pct = (favorite_civ[1] / n_matches * 100) if n_matches > 0 else 0
     
-    # TC Idle Effective average (trimmed mean - range: lower - upper)
+    # TC Idle Effective average (winsorized mean - range: lower - upper)
     tc_idle_eff_lowers = [s.get("tc_idle_eff_lower") for s in filtered_stats if s.get("tc_idle_eff_lower") is not None]
-    avg_tc_idle_eff_lower = round(trimmed_mean(tc_idle_eff_lowers)) if tc_idle_eff_lowers else 0
+    avg_tc_idle_eff_lower = round(winsorized_mean(tc_idle_eff_lowers)) if tc_idle_eff_lowers else 0
     
     tc_idle_eff_uppers = [s.get("tc_idle_eff_upper") for s in filtered_stats if s.get("tc_idle_eff_upper") is not None]
-    avg_tc_idle_eff_upper = round(trimmed_mean(tc_idle_eff_uppers)) if tc_idle_eff_uppers else 0
+    avg_tc_idle_eff_upper = round(winsorized_mean(tc_idle_eff_uppers)) if tc_idle_eff_uppers else 0
     
-    # Game duration average (trimmed mean)
+    # Game duration average (winsorized mean)
     durations = [s.get("duration") for s in filtered_stats if s.get("duration") and s.get("duration") != 0]
-    avg_duration_val = trimmed_mean(durations)
+    avg_duration_val = winsorized_mean(durations)
     avg_duration = fmt(avg_duration_val) if avg_duration_val else "--:--"
     avg_duration_min = avg_duration_val / 60 if avg_duration_val else 0
     
@@ -775,7 +779,7 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     pdf.set_text_color(127, 140, 141)
     n_1v1 = sum(1 for s in filtered_stats if s.get("diplomacy") == "1v1")
     n_tg = n_matches - n_1v1
-    subtitle = f"{n_matches} matches ({n_1v1} 1v1 / {n_tg} TG) | ELO: {current_elo} | Trimmed mean (10%)"
+    subtitle = f"{n_matches} matches ({n_1v1} 1v1 / {n_tg} TG) | ELO: {current_elo} | Winsorized mean (10%)"
     if tg_warning:
         subtitle += " ⚠️ Includes TG data"
     pdf.cell(0, 6, subtitle, ln=True, align="C")

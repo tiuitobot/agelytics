@@ -24,7 +24,7 @@ METRIC_REGISTRY = {
     "Opening Strategy": {"badge": "🔬", "type": "Experimental", "desc": "Pattern matching on early military production"},
     # Aggregate
     "Win Rate": {"badge": "✅", "type": "Deterministic", "desc": "Games won / total games"},
-    "Avg Metrics": {"badge": "📐", "type": "Derived", "desc": "Trimmed mean (10%) across matches. Outliers >2σ flagged."},
+    "Avg Metrics": {"badge": "📐", "type": "Derived", "desc": "Winsorized mean (10%) across matches. Outliers >2σ flagged."},
     "ELO (API)": {"badge": "✅", "type": "Deterministic", "desc": "Per-match rating from aoe2companion API"},
     "ELO (Replay)": {"badge": "🔬", "type": "Experimental", "desc": "Static snapshot from replay header"},
     "Death Count": {"badge": "🔬", "type": "Experimental", "desc": "Delete commands (exact) + military inactivity heuristic"},
@@ -116,7 +116,7 @@ def render_disclaimer_page(pdf: FPDF, metrics_used: list[str] = None):
         "• Housing time is reported as a range [lower, upper]. The true value lies between bounds.",
         "• Lower bound is conservative (only detects housing with house-building evidence).",
         "• Upper bound is liberal (overestimates in Castle/Imperial due to untracked combat deaths).",
-        "• Aggregate averages use trimmed mean (10%) to reduce outlier impact.",
+        "• Aggregate averages use winsorized mean (10%) to reduce outlier impact.",
         "• Matches with values >2σ from mean are flagged as outliers in charts.",
         "• Data source: 1v1 matches preferred (≥5). TG included with warning if insufficient 1v1 data.",
         "• Replay parsing via mgz library. Some replay versions may have parsing limitations.",
