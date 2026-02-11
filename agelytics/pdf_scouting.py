@@ -223,8 +223,9 @@ def chart_performance_grid(stats: list[dict]):
     feudal_times = [s.get("feudal") for s in stats]
     castle_times = [s.get("castle") for s in stats]
     imperial_times = [s.get("imperial") for s in stats]
+    diplomacies = [s.get("diplomacy", "1v1") for s in stats]
     
-    # Plot lines with trend
+    # Plot lines with trend — use different markers for 1v1 vs TG
     for times, label, color in [
         (feudal_times, "Feudal", "blue"),
         (castle_times, "Castle", "orange"),
@@ -232,9 +233,15 @@ def chart_performance_grid(stats: list[dict]):
     ]:
         valid_idx = [i for i, t in enumerate(times) if t is not None and t != 0]
         valid_times = [times[i] for i in valid_idx]
+        valid_markers = ['o' if diplomacies[i] == '1v1' else 'D' for i in valid_idx]
         
         if valid_times:
-            ax.scatter(valid_idx, valid_times, alpha=0.6, s=30, label=label, color=color)
+            # Plot 1v1 and TG separately for different markers
+            for marker, mlabel in [('o', '1v1'), ('D', 'TG')]:
+                m_idx = [vi for vi, vm in zip(valid_idx, valid_markers) if vm == marker]
+                m_times = [valid_times[j] for j, vm in enumerate(valid_markers) if vm == marker]
+                if m_times:
+                    ax.scatter(m_idx, m_times, alpha=0.6, s=30, color=color, marker=marker)
             
             # Trend line
             if len(valid_times) >= 2:
@@ -242,10 +249,19 @@ def chart_performance_grid(stats: list[dict]):
                 p = np.poly1d(z)
                 ax.plot(valid_idx, p(valid_idx), "--", alpha=0.5, color=color, linewidth=1)
     
+    # Custom legend
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', markersize=6, label='Feudal'),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='orange', markersize=6, label='Castle'),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=6, label='Imperial'),
+        Line2D([0], [0], marker='D', color='w', markerfacecolor='gray', markersize=6, label='TG match'),
+    ]
+    ax.legend(handles=legend_elements, loc='best', fontsize=6)
+    
     ax.set_xlabel("Match Index")
     ax.set_ylabel("Time (seconds)")
-    ax.set_title("Age-up Times\n(Faster ↓ is better)", fontsize=10, fontweight='bold')
-    ax.legend(loc='best', fontsize=7)
+    ax.set_title("Age-up Times (◆=TG)", fontsize=10, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     ax.invert_yaxis()  # Faster at bottom
     
@@ -254,12 +270,17 @@ def chart_performance_grid(stats: list[dict]):
     
     tc_idle = [s.get("tc_idle", 0) for s in stats]
     winners = [s.get("winner", False) for s in stats]
+    diplomacies = [s.get("diplomacy", "1v1") for s in stats]
     colors = [COLORS["victory"] if w else COLORS["defeat"] for w in winners]
     
     bars = ax.bar(indices, tc_idle, color=colors, edgecolor='white', linewidth=0.5)
+    # Mark TG matches with a diamond marker on top
+    for i, (tc, dip) in enumerate(zip(tc_idle, diplomacies)):
+        if dip == "TG":
+            ax.plot(i, tc + max(tc_idle) * 0.03, marker='D', color='gray', markersize=4, alpha=0.7)
     ax.set_xlabel("Match Index")
     ax.set_ylabel("TC Idle (seconds)")
-    ax.set_title("TC Idle Time per Match", fontsize=10, fontweight='bold')
+    ax.set_title("TC Idle Time per Match (◆=TG)", fontsize=10, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     
     # Bottom-left: eAPM per match with rolling average
@@ -267,8 +288,11 @@ def chart_performance_grid(stats: list[dict]):
     
     eapm = [s.get("eapm", 0) for s in stats]
     
-    ax.plot(indices, eapm, marker='o', markersize=3, linewidth=1, 
-            color=COLORS["accent_orange"], alpha=0.6, label="eAPM")
+    # Plot with different markers for 1v1 vs TG
+    for i, (e, dip) in enumerate(zip(eapm, diplomacies)):
+        marker = 'o' if dip == '1v1' else 'D'
+        ax.plot(i, e, marker=marker, markersize=4, color=COLORS["accent_orange"], alpha=0.6)
+    ax.plot(indices, eapm, linewidth=1, color=COLORS["accent_orange"], alpha=0.3)
     
     # Rolling average
     if len(eapm) >= 5:
@@ -288,9 +312,13 @@ def chart_performance_grid(stats: list[dict]):
     durations = [s.get("duration", 0) / 60 for s in stats]  # Convert to minutes
     
     bars = ax.bar(indices, durations, color=colors, edgecolor='white', linewidth=0.5)
+    # Mark TG matches with diamond
+    for i, (dur, dip) in enumerate(zip(durations, diplomacies)):
+        if dip == "TG":
+            ax.plot(i, dur + max(durations) * 0.03, marker='D', color='gray', markersize=4, alpha=0.7)
     ax.set_xlabel("Match Index")
     ax.set_ylabel("Duration (minutes)")
-    ax.set_title("Game Duration per Match", fontsize=10, fontweight='bold')
+    ax.set_title("Game Duration per Match (◆=TG)", fontsize=10, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     
     plt.tight_layout()
@@ -561,7 +589,9 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     # Subtitle
     pdf.set_font("DejaVu", "", 10)
     pdf.set_text_color(127, 140, 141)
-    subtitle = f"{n_matches} matches analyzed | ELO: {current_elo}"
+    n_1v1 = sum(1 for s in filtered_stats if s.get("diplomacy") == "1v1")
+    n_tg = n_matches - n_1v1
+    subtitle = f"{n_matches} matches ({n_1v1} 1v1 / {n_tg} TG) | ELO: {current_elo}"
     if tg_warning:
         subtitle += " ⚠️ Includes TG data"
     pdf.cell(0, 6, subtitle, ln=True, align="C")
