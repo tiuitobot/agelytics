@@ -91,34 +91,45 @@ def search_player(name: str) -> Optional[dict]:
     stat_groups = data.get("statGroups", [])
     leaderboard_stats = data.get("leaderboardStats", [])
 
-    # Find exact or closest match
-    target = None
+    # Build list of all matching candidates with their leaderboard stats
+    candidates = []
     for sg in stat_groups:
         for member in sg.get("members", []):
-            if member.get("alias", "").lower() == name.lower():
-                target = member
-                break
-        if target:
-            break
+            if member.get("alias", "").lower() != name.lower():
+                continue
+            sgid = member.get("personal_statgroup_id") or sg.get("id")
+            lb = None
+            for ls in leaderboard_stats:
+                if ls.get("statgroup_id") == sgid and ls.get("leaderboard_id") == 3:
+                    lb = ls
+                    break
+            candidates.append((member, lb))
 
-    # Fallback to first result
-    if not target and stat_groups:
-        members = stat_groups[0].get("members", [])
-        if members:
-            target = members[0]
+    if not candidates:
+        # Fallback: accept partial matches
+        for sg in stat_groups:
+            for member in sg.get("members", []):
+                sgid = member.get("personal_statgroup_id") or sg.get("id")
+                lb = None
+                for ls in leaderboard_stats:
+                    if ls.get("statgroup_id") == sgid and ls.get("leaderboard_id") == 3:
+                        lb = ls
+                        break
+                candidates.append((member, lb))
 
-    if not target:
+    if not candidates:
         return None
 
-    profile_id = target["profile_id"]
-    statgroup_id = target.get("personal_statgroup_id")
+    # Pick the most active player: highest (wins + losses), then highest rating
+    def _score(c):
+        m, lb = c
+        if not lb:
+            return (0, 0)
+        return (lb.get("wins", 0) + lb.get("losses", 0), lb.get("rating", 0))
 
-    # Find matching leaderboard stats (1v1 RM = leaderboard_id 3)
-    lb_stat = None
-    for ls in leaderboard_stats:
-        if ls.get("statgroup_id") == statgroup_id and ls.get("leaderboard_id") == 3:
-            lb_stat = ls
-            break
+    target, lb_stat = max(candidates, key=_score)
+
+    profile_id = target["profile_id"]
 
     result = {
         "profile_id": profile_id,
