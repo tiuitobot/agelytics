@@ -147,6 +147,39 @@
     color: #e0e0e0;
   }
 
+  /* Mode tabs */
+  .mode-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 165, 0, 0.2);
+  }
+  .mode-tab {
+    flex: 1;
+    padding: 8px 12px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    background: rgba(25, 25, 45, 0.9);
+    color: #888;
+    border: none;
+    transition: all 0.2s;
+  }
+  .mode-tab:hover { color: #ccc; }
+  .mode-tab.active {
+    background: rgba(255, 165, 0, 0.15);
+    color: #ffa500;
+  }
+  .mode-tab.disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
   /* Civ list */
   .section {
     background: rgba(25, 25, 45, 0.9);
@@ -305,7 +338,10 @@ async function doSearch() {
   }
 }
 
+let _lastReport = null;
+
 function renderReport(d) {
+  _lastReport = d;
   const p = d.player;
   const trendMap = { rising: ['↑', 'trend-rising'], falling: ['↓', 'trend-falling'], stable: ['→', 'trend-stable'] };
   const [arrow, trendClass] = trendMap[d.elo_trend] || ['→', 'trend-stable'];
@@ -317,33 +353,8 @@ function renderReport(d) {
     streakHtml = `<div class="streak ${cls}">🔥 ${label}</div>`;
   }
 
-  let civsHtml = '';
-  if (d.top_civs && d.top_civs.length) {
-    civsHtml = d.top_civs.map(c => {
-      const wrClass = c.win_rate >= 55 ? 'wr-good' : c.win_rate <= 45 ? 'wr-bad' : 'wr-neutral';
-      return `<div class="civ-row">
-        <span class="civ-name">${c.civ}</span>
-        <span class="civ-stats">${c.games}G — <span class="${wrClass}">${c.win_rate}% WR</span></span>
-      </div>`;
-    }).join('');
-  }
-
-  let mapsHtml = '';
-  if (d.top_maps && d.top_maps.length) {
-    mapsHtml = d.top_maps.map(m =>
-      `<div class="civ-row"><span class="civ-name">${m.map}</span><span class="civ-stats">${m.games}G</span></div>`
-    ).join('');
-  }
-
-  // Civ detail for top civ
-  let civDetailHtml = '';
-  if (d.top_civs && d.top_civs.length) {
-    const topCiv = d.top_civs[0].civ;
-    fetchCivDetail(topCiv);
-  }
-
-  const wr = d.win_rate || {};
-  const wrClass = (wr.win_rate||0) >= 55 ? 'wr-good' : (wr.win_rate||0) <= 45 ? 'wr-bad' : 'wr-neutral';
+  const hasSolo = d.solo && d.solo.match_count > 0;
+  const hasTeam = d.team && d.team.match_count > 0;
 
   document.getElementById('content').innerHTML = `
     <div class="player-card">
@@ -357,14 +368,67 @@ function renderReport(d) {
       ${streakHtml}
     </div>
 
+    <div class="mode-tabs">
+      <div class="mode-tab ${hasSolo ? 'active' : 'disabled'}" id="tabSolo" onclick="switchTab('solo')">
+        1v1 Ranked${hasSolo ? ' (' + d.solo.match_count + ')' : ''}
+      </div>
+      <div class="mode-tab ${!hasSolo && hasTeam ? 'active' : ''} ${hasTeam ? '' : 'disabled'}" id="tabTeam" onclick="switchTab('team')">
+        Team Games${hasTeam ? ' (' + d.team.match_count + ')' : ''}
+      </div>
+    </div>
+
+    <div id="modeContent"></div>
+
+    <div class="section" id="civDetailSection" style="display:none">
+      <div class="section-title" id="civDetailTitle">Civ Detail</div>
+      <div id="civDetailContent"></div>
+    </div>
+  `;
+
+  // Show default tab
+  switchTab(hasSolo ? 'solo' : 'team');
+}
+
+function switchTab(mode) {
+  const d = _lastReport;
+  if (!d) return;
+  const modeData = mode === 'solo' ? d.solo : d.team;
+  if (!modeData || modeData.match_count === 0) return;
+
+  // Update tab styling
+  document.getElementById('tabSolo').classList.toggle('active', mode === 'solo');
+  document.getElementById('tabTeam').classList.toggle('active', mode === 'team');
+
+  const wr = modeData.win_rate || {};
+  const wrClass = (wr.win_rate||0) >= 55 ? 'wr-good' : (wr.win_rate||0) <= 45 ? 'wr-bad' : 'wr-neutral';
+
+  let civsHtml = '';
+  if (modeData.top_civs && modeData.top_civs.length) {
+    civsHtml = modeData.top_civs.map(c => {
+      const cClass = c.win_rate >= 55 ? 'wr-good' : c.win_rate <= 45 ? 'wr-bad' : 'wr-neutral';
+      return `<div class="civ-row">
+        <span class="civ-name">${c.civ}</span>
+        <span class="civ-stats">${c.games}G — <span class="${cClass}">${c.win_rate}% WR</span></span>
+      </div>`;
+    }).join('');
+  }
+
+  let mapsHtml = '';
+  if (modeData.top_maps && modeData.top_maps.length) {
+    mapsHtml = modeData.top_maps.map(m =>
+      `<div class="civ-row"><span class="civ-name">${m.map}</span><span class="civ-stats">${m.games}G</span></div>`
+    ).join('');
+  }
+
+  document.getElementById('modeContent').innerHTML = `
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-label">Win Rate (Last ${wr.total || 20})</div>
+        <div class="stat-label">Win Rate (Last ${wr.total || 0})</div>
         <div class="stat-value ${wrClass}">${wr.win_rate || 0}%</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Opening Style</div>
-        <div class="stat-value" style="font-size:13px">${d.opening_tendency || 'Unknown'}</div>
+        <div class="stat-value" style="font-size:13px">${modeData.opening_tendency || 'Unknown'}</div>
       </div>
     </div>
 
@@ -377,12 +441,12 @@ function renderReport(d) {
       <div class="section-title">Favorite Maps</div>
       ${mapsHtml || '<div class="status-msg">No data</div>'}
     </div>
-
-    <div class="section" id="civDetailSection" style="display:none">
-      <div class="section-title" id="civDetailTitle">Civ Detail</div>
-      <div id="civDetailContent"></div>
-    </div>
   `;
+
+  // Fetch civ detail for top civ
+  if (modeData.top_civs && modeData.top_civs.length) {
+    fetchCivDetail(modeData.top_civs[0].civ);
+  }
 }
 
 async function fetchCivDetail(civName) {

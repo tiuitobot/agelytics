@@ -151,22 +151,33 @@ def scout_player(player_name: str) -> dict:
             "error": "Could not fetch match history",
         }
 
-    # Filter to 1v1 RM only (matchtype_id 6) for accurate stats
+    # Split by game mode
     rm_matches = [m for m in matches if m.get("matchtype_id") == 6]
-    # Fallback to all matches if no 1v1 RM found
-    analysis_matches = rm_matches if rm_matches else matches
+    team_matches = [m for m in matches if m.get("matchtype_id") in (7, 8, 9)]
 
-    # Compute scouting data
-    trend = _elo_trend(analysis_matches, profile_id)
-    top_civs = _top_civs(analysis_matches, profile_id)
-    opening = _opening_tendency(analysis_matches, profile_id)
-    wr = _win_rate(analysis_matches, profile_id)
+    def _build_mode_stats(mode_matches, pid):
+        """Build stats block for a set of matches."""
+        if not mode_matches:
+            return None
+        return {
+            "trend": _elo_trend(mode_matches, pid),
+            "top_civs": _top_civs(mode_matches, pid),
+            "opening_tendency": _opening_tendency(mode_matches, pid),
+            "win_rate": _win_rate(mode_matches, pid),
+            "top_maps": [
+                {"map": name, "games": count}
+                for name, count in Counter(
+                    m["map"] for m in mode_matches
+                ).most_common(3)
+            ],
+            "match_count": len(mode_matches),
+        }
 
-    # Get favorite maps
-    map_counter = Counter()
-    for m in analysis_matches:
-        map_counter[m["map"]] += 1
-    top_maps = [{"map": name, "games": count} for name, count in map_counter.most_common(3)]
+    solo = _build_mode_stats(rm_matches, profile_id)
+    team = _build_mode_stats(team_matches, profile_id)
+
+    # Primary stats come from 1v1 RM, fallback to team
+    primary = solo or team
 
     return {
         "available": True,
@@ -179,11 +190,13 @@ def scout_player(player_name: str) -> dict:
             "rank": player["rank"],
             "highest_rating": player["highest_rating"],
         },
-        "elo_trend": trend,
-        "top_civs": top_civs,
-        "opening_tendency": opening,
-        "win_rate": wr,
-        "top_maps": top_maps,
-        "recent_matches": len(analysis_matches),
+        "elo_trend": primary["trend"],
+        "top_civs": primary["top_civs"],
+        "opening_tendency": primary["opening_tendency"],
+        "win_rate": primary["win_rate"],
+        "top_maps": primary["top_maps"],
+        "recent_matches": primary["match_count"],
         "streak": player.get("streak", 0),
+        "solo": solo,
+        "team": team,
     }
