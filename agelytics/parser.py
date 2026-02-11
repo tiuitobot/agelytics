@@ -504,6 +504,33 @@ def _extract_detailed_data(summary: Summary, players: list) -> dict:
                         tc_free_at += (duration / num_tcs)
                 
                 result["tc_idle"][pname] = round(total_idle, 1)
+                
+                # Calculate housed time: correlate vill queue gaps with house bursts
+                # Housing = gap between consecutive vill queues where 2+ houses built nearby
+                house_times_p = sorted([
+                    b["timestamp_secs"] for b in building_timestamps.get(pname, [])
+                    if b["building"] == "House"
+                ])
+                
+                housed_time = 0.0
+                vill_only = sorted([t for t, d, tt in tasks if tt == "vill"])
+                for i in range(1, len(vill_only)):
+                    gap = vill_only[i] - vill_only[i - 1]
+                    if gap > VILL_TRAIN_TIME + 5:  # Gap longer than 1 vill train = suspicious
+                        gap_start = vill_only[i - 1]
+                        gap_end = vill_only[i]
+                        # Count houses built during or shortly after this gap
+                        houses_in_gap = sum(
+                            1 for ht in house_times_p
+                            if gap_start - 5 <= ht <= gap_end + 10
+                        )
+                        if houses_in_gap >= 2:
+                            # Subtract normal vill train time — the excess is housed time
+                            excess = gap - VILL_TRAIN_TIME
+                            housed_time += max(0, excess)
+                
+                result.setdefault("housed_time", {})[pname] = round(housed_time, 1)
+                result.setdefault("tc_idle_effective", {})[pname] = round(total_idle + housed_time, 1)
     
     except Exception:
         # If detailed extraction fails entirely, return empty data
