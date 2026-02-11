@@ -216,6 +216,37 @@ def match_report(match: dict, player_name: str = None) -> str:
                         age_parts.append(f"{age} {format_duration(val)}")
                 if age_parts:
                     lines.append(f"       TC idle by age: {', '.join(age_parts)}")
+
+            # TC idle breakdown (micro/macro/afk)
+            tc_idle_breakdown = match.get("tc_idle_breakdown", {}).get(player, {})
+            if tc_idle_breakdown:
+                micro = tc_idle_breakdown.get("micro", {})
+                macro = tc_idle_breakdown.get("macro", {})
+                afk = tc_idle_breakdown.get("afk", {})
+                lines.append(
+                    "       TC idle breakdown: "
+                    f"micro {int(micro.get('count', 0))}x/{format_duration(micro.get('total', 0))}, "
+                    f"macro {int(macro.get('count', 0))}x/{format_duration(macro.get('total', 0))}, "
+                    f"AFK {int(afk.get('count', 0))}x/{format_duration(afk.get('total', 0))}"
+                )
+
+            # Housing range + TC idle effective range
+            housed_lower = match.get("housed_time_lower", {}).get(player)
+            housed_upper = match.get("housed_time_upper", {}).get(player)
+            tc_eff_lower = match.get("tc_idle_effective_lower", {}).get(player)
+            tc_eff_upper = match.get("tc_idle_effective_upper", {}).get(player)
+
+            has_housing_range = housed_lower is not None or housed_upper is not None
+            has_effective_range = tc_eff_lower is not None or tc_eff_upper is not None
+
+            if has_housing_range:
+                lower_s = format_duration(housed_lower if housed_lower is not None else 0)
+                upper_s = format_duration(housed_upper if housed_upper is not None else 0)
+                lines.append(f"       Housing time (range): {lower_s} - {upper_s}")
+            if has_effective_range:
+                lower_s = format_duration(tc_eff_lower if tc_eff_lower is not None else 0)
+                upper_s = format_duration(tc_eff_upper if tc_eff_upper is not None else 0)
+                lines.append(f"       TC idle effective: {lower_s} - {upper_s}")
         
         # New eco metrics per player
         for player in [p["name"] for p in players]:
