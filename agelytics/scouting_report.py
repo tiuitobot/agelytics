@@ -35,6 +35,24 @@ def format_time(seconds: Optional[int]) -> str:
     return f"{mins}:{secs:02d}"
 
 
+def winsorized_mean(values: list[float], pct: float = 0.1) -> Optional[float]:
+    """Winsorized mean: clip tails to percentile boundaries before averaging."""
+    clean = sorted(v for v in values if v is not None)
+    if not clean:
+        return None
+    if len(clean) < 3:
+        return statistics.mean(clean)
+
+    k = int(len(clean) * pct)
+    if k <= 0:
+        return statistics.mean(clean)
+
+    low = clean[k]
+    high = clean[-k - 1]
+    clipped = [min(max(v, low), high) for v in clean]
+    return statistics.mean(clipped)
+
+
 def single_match_report(parsed_match: dict, opponent_name: str) -> str:
     """Generate text report for a single parsed match.
     
@@ -206,6 +224,7 @@ def aggregate_scouting_report(parsed_matches: list[dict], opponent_name: str,
     lines.append("")
     lines.append(f"Total de partidas analisadas: {total_matches}")
     lines.append(source_tag)
+    lines.append("Agregações: média winsorizada (10%)")
     lines.append(f"1v1: {len(matches_1v1)} | Team Games: {len(matches_tg)}")
     lines.append("")
     
@@ -232,17 +251,17 @@ def aggregate_scouting_report(parsed_matches: list[dict], opponent_name: str,
         lines.append("⏱️  TEMPOS DE AVANÇO (média ± std):")
         
         if feudal_times:
-            avg_f = statistics.mean(feudal_times)
+            avg_f = winsorized_mean(feudal_times) or statistics.mean(feudal_times)
             std_f = statistics.stdev(feudal_times) if len(feudal_times) > 1 else 0
             lines.append(f"  Feudal: {format_time(int(avg_f))} ± {std_f:.0f}s (n={len(feudal_times)})")
         
         if castle_times:
-            avg_c = statistics.mean(castle_times)
+            avg_c = winsorized_mean(castle_times) or statistics.mean(castle_times)
             std_c = statistics.stdev(castle_times) if len(castle_times) > 1 else 0
             lines.append(f"  Castelo: {format_time(int(avg_c))} ± {std_c:.0f}s (n={len(castle_times)})")
         
         if imperial_times:
-            avg_i = statistics.mean(imperial_times)
+            avg_i = winsorized_mean(imperial_times) or statistics.mean(imperial_times)
             std_i = statistics.stdev(imperial_times) if len(imperial_times) > 1 else 0
             lines.append(f"  Imperial: {format_time(int(avg_i))} ± {std_i:.0f}s (n={len(imperial_times)})")
         
@@ -252,7 +271,8 @@ def aggregate_scouting_report(parsed_matches: list[dict], opponent_name: str,
     if len(ratings) >= 2:
         lines.append("📈 EVOLUÇÃO DE RATING:")
         lines.append(f"  Inicial: {ratings[0]} → Atual: {ratings[-1]} (Δ {ratings[-1] - ratings[0]:+d})")
-        lines.append(f"  Média: {statistics.mean(ratings):.0f} | Min: {min(ratings)} | Max: {max(ratings)}")
+        avg_rating = winsorized_mean(ratings) or statistics.mean(ratings)
+        lines.append(f"  Média: {avg_rating:.0f} | Min: {min(ratings)} | Max: {max(ratings)}")
         lines.append("")
     
     # Trends (recent vs older age-up times)
