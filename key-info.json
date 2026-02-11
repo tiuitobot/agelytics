@@ -192,6 +192,15 @@
       "date": "2026-02-11",
       "source": "Bruno decision",
       "context": "Bruno confirmou: sistema de PDF \u00e9 exatamente o mesmo, s\u00f3 muda fonte e contexto. Unificar depois do housing."
+    },
+    {
+      "id": "K024",
+      "info": "Metrics methodology doc at documentation/metrics-methodology.md. RULE: Any metric change MUST update this file. Reports must show badges (\u2705/\ud83d\udd2c/\ud83d\udcd0) and disclaimer page.",
+      "importance": "critical",
+      "status": "active",
+      "date": "2026-02-11",
+      "source": "Bruno requirement",
+      "context": "Bruno (economist rigor): all metrics need formal definition, classification (deterministic/experimental/derived), and methodology disclaimers in reports."
     }
   ]
 }
