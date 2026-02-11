@@ -50,6 +50,88 @@ def safe_avg_seconds(values):
     return fmt(avg) if avg else "--:--"
 
 
+# ─── Player Extraction ────────────────────────────────────────
+
+
+def extract_player_stats(match_data: dict, player_name: str) -> dict:
+    """Flatten multi-player match data into a single-player view.
+
+    Converts the parser's per-match dict (which contains data for all
+    players) into the flat dict expected by the chart/KPI helpers.
+    """
+    # Find the player in the players list
+    player_info = None
+    for p in match_data.get("players", []):
+        if p.get("name") == player_name:
+            player_info = p
+            break
+
+    if player_info is None:
+        return None
+
+    # Age-up times for this player
+    age_times = {}
+    for au in match_data.get("age_ups", []):
+        if au.get("player") == player_name:
+            age_label = au.get("age", "")
+            if "Feudal" in age_label:
+                age_times["feudal"] = au["timestamp_secs"]
+            elif "Castle" in age_label:
+                age_times["castle"] = au["timestamp_secs"]
+            elif "Imperial" in age_label:
+                age_times["imperial"] = au["timestamp_secs"]
+
+    # TC idle: may be a dict keyed by player or a flat number
+    tc_idle_raw = match_data.get("tc_idle")
+    if isinstance(tc_idle_raw, dict):
+        tc_idle_val = tc_idle_raw.get(player_name, 0)
+    elif tc_idle_raw is not None:
+        tc_idle_val = tc_idle_raw
+    else:
+        tc_idle_val = 0
+
+    # TC idle percent from metrics
+    metrics = match_data.get("metrics", {})
+    if isinstance(metrics, dict) and player_name in metrics:
+        tc_idle_pct = metrics[player_name].get("tc_idle_percent")
+    else:
+        tc_idle_pct = None
+
+    # Unit production for this player
+    unit_prod = match_data.get("unit_production", {})
+    if isinstance(unit_prod, dict) and player_name in unit_prod:
+        units = unit_prod[player_name]
+    else:
+        units = unit_prod if not any(isinstance(v, dict) for v in unit_prod.values()) else {}
+
+    # Opening for this player
+    openings = match_data.get("openings", {})
+    if isinstance(openings, dict) and player_name in openings:
+        opening = openings[player_name]
+    elif isinstance(openings, str):
+        opening = openings
+    else:
+        opening = None
+
+    return {
+        "civ": player_info.get("civ_name"),
+        "winner": player_info.get("winner", False),
+        "eapm": player_info.get("eapm", 0),
+        "elo": player_info.get("elo"),
+        "feudal": age_times.get("feudal"),
+        "castle": age_times.get("castle"),
+        "imperial": age_times.get("imperial"),
+        "tc_idle": tc_idle_val,
+        "tc_idle_percent": tc_idle_pct,
+        "duration": match_data.get("duration_secs", 0),
+        "map": match_data.get("map_name", "Unknown"),
+        "diplomacy": match_data.get("diplomacy"),
+        "played_at": match_data.get("played_at"),
+        "units": units,
+        "opening": opening,
+    }
+
+
 # ─── Data Filtering & Processing ─────────────────────────────
 
 
@@ -389,8 +471,15 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     - If >=5: use only those
     - If <5: use all, add warning tag
     """
+    # Flatten multi-player match data into per-player view
+    flat_stats = []
+    for match in stats:
+        flat = extract_player_stats(match, opponent_name)
+        if flat is not None:
+            flat_stats.append(flat)
+
     # Filter stats
-    filtered_stats, tg_warning = filter_stats(stats)
+    filtered_stats, tg_warning = filter_stats(flat_stats)
     
     if not filtered_stats:
         raise ValueError("No stats to analyze")
