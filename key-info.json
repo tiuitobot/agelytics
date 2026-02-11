@@ -150,6 +150,30 @@
       "status": "confirmed",
       "date": "2026-02-11",
       "source": "aoe2insights FAQ"
+    },
+    {
+      "id": "K019",
+      "info": "MS rate limit: 2s delay between downloads is stable. 0.5s causes 429 after ~7 requests. Retry backoff: 5s/10s/15s on 429.",
+      "importance": "high",
+      "status": "confirmed",
+      "date": "2026-02-11",
+      "source": "empirical testing with Urubu (19/20 replays, 38MB)"
+    },
+    {
+      "id": "K020",
+      "info": "Player disambiguation: WorldsEdge search returns multiple players with same name. search_player picks most active (games+rating). 4 'Urubu' players found, correct one auto-selected.",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-11",
+      "source": "Urubu test — Bruno confirmed correct player"
+    },
+    {
+      "id": "K021",
+      "info": "Scouting data priority: 1v1 RM first. If n<5, complement with team games + tag '⚠️ Inclui dados TG (amostra 1v1: n=X)'. Team data is noisier (pocket/flank roles, negotiated civs).",
+      "importance": "high",
+      "status": "active",
+      "date": "2026-02-11",
+      "source": "Bruno decision"
     }
   ]
 }
