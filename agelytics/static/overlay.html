@@ -292,8 +292,9 @@
     <div class="status-msg">Enter an opponent name to scout.</div>
   </div>
 
-  <div class="section" style="margin-top: 8px;">
+  <div class="section" style="margin-top: 8px;" id="matchupSection">
     <div class="section-title">Civ Matchup Lookup</div>
+    <div id="autoMatchup"></div>
     <div class="matchup-bar">
       <select id="civ1Select"></select>
       <span style="color:#888;align-self:center">vs</span>
@@ -538,7 +539,85 @@ function startTimer(seconds) {
   }, 1000);
 }
 
+// Auto-load match context and trigger scouting
+async function checkMatchContext() {
+  try {
+    const resp = await fetch(`${API}/api/match-context`);
+    const ctx = await resp.json();
+    if (ctx.opponent_name) {
+      // Auto-fill search and scout
+      document.getElementById('searchInput').value = ctx.opponent_name;
+      await doSearch();
+
+      // Auto-show matchup
+      await showAutoMatchup(ctx.self_civ, ctx.opponent_civ);
+
+      // Show opponent's current civ S&W (override top civ detail)
+      if (ctx.opponent_civ && ctx.opponent_civ !== 'Unknown') {
+        fetchCivDetail(ctx.opponent_civ);
+      }
+    }
+  } catch {}
+}
+
+async function showAutoMatchup(selfCiv, oppCiv) {
+  const el = document.getElementById('autoMatchup');
+  if (!selfCiv || !oppCiv || selfCiv === 'Unknown' || oppCiv === 'Unknown') {
+    el.innerHTML = '';
+    return;
+  }
+  try {
+    const [matchResp, civAResp, civBResp] = await Promise.all([
+      fetch(`${API}/api/matchup/${encodeURIComponent(selfCiv)}/${encodeURIComponent(oppCiv)}`),
+      fetch(`${API}/api/civ/${encodeURIComponent(selfCiv)}`),
+      fetch(`${API}/api/civ/${encodeURIComponent(oppCiv)}`)
+    ]);
+    const data = await matchResp.json();
+    const civA = await civAResp.json();
+    const civB = await civBResp.json();
+
+    const civDetail = (civ) => {
+      const pros = (civ.pros||[]).map(p => `<span class="tag tag-pro">✓ ${p}</span>`).join('');
+      const cons = (civ.cons||[]).map(c => `<span class="tag tag-con">✗ ${c}</span>`).join('');
+      const uu = civ.unique_units ? `<div style="font-size:11px;color:#aaa;margin-top:4px">UU: ${civ.unique_units.join(', ')}</div>` : '';
+      return `<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:#ffa500;margin-bottom:4px">${civ.civ}</div><div class="civ-detail">${pros}${cons}${uu}</div></div>`;
+    };
+
+    el.innerHTML = `
+      <div style="text-align:center;font-size:14px;font-weight:700;color:#ffa500;margin-bottom:8px">
+        ⚔️ CURRENT MATCH: ${selfCiv} vs ${oppCiv}
+      </div>
+      <div class="matchup-result">
+        <div class="matchup-fav">${data.favorability}</div>
+        <div class="matchup-note">${data.note}</div>
+      </div>
+      ${civDetail(civB)}
+      <div style="border-bottom:1px solid rgba(255,165,0,0.2);margin:12px 0"></div>
+    `;
+  } catch {}
+}
+
+// Poll for match context every 5s
+setInterval(async () => {
+  try {
+    const resp = await fetch(`${API}/api/match-context`);
+    const ctx = await resp.json();
+    if (ctx.opponent_name) {
+      const currentSearch = document.getElementById('searchInput').value.trim().toLowerCase();
+      if (currentSearch !== ctx.opponent_name.toLowerCase()) {
+        document.getElementById('searchInput').value = ctx.opponent_name;
+        await doSearch();
+        await showAutoMatchup(ctx.self_civ, ctx.opponent_civ);
+        if (ctx.opponent_civ && ctx.opponent_civ !== 'Unknown') {
+          fetchCivDetail(ctx.opponent_civ);
+        }
+      }
+    }
+  } catch {}
+}, 5000);
+
 loadCivs();
+checkMatchContext();
 </script>
 </body>
 </html>

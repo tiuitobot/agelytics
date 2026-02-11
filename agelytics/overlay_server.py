@@ -1,6 +1,8 @@
 """FastAPI server for the scouting overlay."""
 
 from pathlib import Path
+from pydantic import BaseModel
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +11,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .scouting import scout_player
 from .civ_kb import get_matchup, get_civ_info, list_civs
+
+# Current match context (set by game_watcher)
+_match_context: Optional[dict] = None
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -56,6 +61,26 @@ def api_civ(civ_name: str):
 def api_civs():
     """List all civs in knowledge base."""
     return {"civs": list_civs()}
+
+
+class MatchContext(BaseModel):
+    opponent_name: str
+    opponent_civ: str
+    self_civ: str
+
+
+@app.post("/api/match-context")
+def set_match_context(ctx: MatchContext):
+    """Set current match context (called by game_watcher)."""
+    global _match_context
+    _match_context = ctx.model_dump()
+    return {"status": "ok", "context": _match_context}
+
+
+@app.get("/api/match-context")
+def get_match_context():
+    """Get current match context."""
+    return _match_context or {"active": False}
 
 
 @app.get("/overlay")

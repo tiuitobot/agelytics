@@ -55,59 +55,99 @@ def get_replay_mtime() -> float:
         return 0
 
 
-def parse_opponent_from_replay() -> Optional[str]:
-    """Parse the live replay file and extract opponent name."""
+def parse_match_from_replay() -> Optional[dict]:
+    """Parse the live replay file and extract match info.
+
+    Returns dict with: opponent_name, opponent_civ, self_civ, map_name
+    or None if parsing fails.
+    """
     if not LIVE_REPLAY.exists():
         return None
 
     try:
         from mgz import header
+        from agelytics.data import CIVILIZATIONS
+
         with open(LIVE_REPLAY, "rb") as f:
             h = header.parse_stream(f)
 
         players = []
         for p in h.de.players:
             name = p.name
-            # Handle Container/bytes/str
             if hasattr(name, 'value'):
                 name = name.value
             if isinstance(name, bytes):
                 name = name.decode('utf-8', errors='replace')
             name = str(name).strip()
-            if name and len(name) > 0:
-                players.append(name)
 
-        # Filter out self
-        opponents = [p for p in players if p.lower() != SELF_NAME.lower()]
-        return opponents[0] if opponents else None
+            civ_id = getattr(p, 'civ_id', None) or getattr(p, 'civilization', None)
+            if hasattr(civ_id, 'value'):
+                civ_id = civ_id.value
+            civ_name = CIVILIZATIONS.get(civ_id, f"Unknown({civ_id})") if civ_id else "Unknown"
+
+            if name and len(name) > 0:
+                players.append({"name": name, "civ": civ_name, "civ_id": civ_id})
+
+        if not players:
+            return None
+
+        self_player = None
+        opponent = None
+        for p in players:
+            if p["name"].lower() == SELF_NAME.lower():
+                self_player = p
+            else:
+                opponent = p
+
+        if not opponent:
+            return None
+
+        return {
+            "opponent_name": opponent["name"],
+            "opponent_civ": opponent["civ"],
+            "self_civ": self_player["civ"] if self_player else "Unknown",
+        }
 
     except Exception as e:
         print(f"[WARN] Failed to parse replay: {e}", file=sys.stderr)
         return None
 
 
-def trigger_scout(opponent_name: str):
-    """Notify that a new opponent was detected."""
+def trigger_scout(match_info: dict):
+    """Notify that a new opponent was detected and set match context."""
+    opp = match_info["opponent_name"]
+    opp_civ = match_info["opponent_civ"]
+    self_civ = match_info["self_civ"]
+
     print(f"\n{'='*50}")
-    print(f"🎯 OPPONENT DETECTED: {opponent_name}")
-    print(f"🔍 Scouting via {OVERLAY_URL}/api/scout/{opponent_name}")
+    print(f"🎯 OPPONENT: {opp} ({opp_civ})")
+    print(f"🛡️ YOU: {SELF_NAME} ({self_civ})")
+    print(f"⚔️ MATCHUP: {self_civ} vs {opp_civ}")
     print(f"{'='*50}\n")
 
-    # Pre-fetch scouting data so it's cached when overlay requests it
     try:
         import httpx
+
+        # Set match context on server
+        httpx.post(
+            f"{OVERLAY_URL}/api/match-context",
+            json={
+                "opponent_name": opp,
+                "opponent_civ": opp_civ,
+                "self_civ": self_civ,
+            },
+            timeout=5.0
+        )
+
+        # Pre-fetch scouting data
         resp = httpx.get(
-            f"{OVERLAY_URL}/api/scout/{opponent_name}",
+            f"{OVERLAY_URL}/api/scout/{opp}",
             timeout=30.0
         )
         if resp.status_code == 200:
             data = resp.json()
             p = data.get("player", {})
             print(f"  ELO: {p.get('rating', '?')}")
-            solo = data.get("solo")
-            if solo and solo.get("top_civs"):
-                top = solo["top_civs"][0]
-                print(f"  Top civ: {top['civ']} ({top['games']}G, {top['win_rate']}% WR)")
             print(f"  ✅ Data cached — overlay ready")
         else:
             print(f"  ⚠️ Scout request failed: {resp.status_code}")
@@ -146,12 +186,12 @@ def main():
             last_mtime = current_mtime
 
             if not in_match:
-                # Try to parse opponent
-                opponent = parse_opponent_from_replay()
-                if opponent and opponent != last_opponent:
-                    last_opponent = opponent
+                # Try to parse match info
+                match_info = parse_match_from_replay()
+                if match_info and match_info["opponent_name"] != last_opponent:
+                    last_opponent = match_info["opponent_name"]
                     in_match = True
-                    trigger_scout(opponent)
+                    trigger_scout(match_info)
 
             time.sleep(POLL_IN_MATCH)
         else:
