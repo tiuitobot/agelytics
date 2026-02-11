@@ -44,6 +44,18 @@ def safe_mean(values):
     return sum(valid) / len(valid) if valid else None
 
 
+def trimmed_mean(values, trim_pct=0.1):
+    """Trimmed mean — remove top/bottom trim_pct of values."""
+    if not values or len(values) < 3:
+        return safe_mean(values)
+    sorted_vals = sorted(v for v in values if v is not None and not pd.isna(v) and v != 0)
+    if not sorted_vals:
+        return None
+    trim_n = max(1, int(len(sorted_vals) * trim_pct))
+    trimmed = sorted_vals[trim_n:-trim_n] if trim_n < len(sorted_vals) // 2 else sorted_vals
+    return sum(trimmed) / len(trimmed) if trimmed else None
+
+
 def safe_avg_seconds(values):
     """Calculate average for time values in seconds."""
     avg = safe_mean(values)
@@ -97,12 +109,26 @@ def extract_player_stats(match_data: dict, player_name: str) -> dict:
     else:
         tc_idle_pct = None
     
-    # Housed time (lower and upper bounds)
-    housed_lower_raw = match_data.get("housed_time_lower", {})
-    housed_lower = housed_lower_raw.get(player_name, 0) if isinstance(housed_lower_raw, dict) else 0
+    # Housed time (lower and upper bounds) with cross-validation
+    housed_lower_by_age_raw = match_data.get("housed_time_lower_by_age", {})
+    housed_lower_by_age = housed_lower_by_age_raw.get(player_name, {}) if isinstance(housed_lower_by_age_raw, dict) else {}
     
-    housed_upper_raw = match_data.get("housed_time_upper", {})
-    housed_upper = housed_upper_raw.get(player_name, 0) if isinstance(housed_upper_raw, dict) else 0
+    housed_upper_by_age_raw = match_data.get("housed_time_upper_by_age", {})
+    housed_upper_by_age = housed_upper_by_age_raw.get(player_name, {}) if isinstance(housed_upper_by_age_raw, dict) else {}
+    
+    # Cross-validation: if upper < lower for any era, set lower to 0 (false positive)
+    housed_lower_validated = {}
+    for era in housed_lower_by_age.keys():
+        lower = housed_lower_by_age.get(era, 0)
+        upper = housed_upper_by_age.get(era, 0)
+        if upper < lower:
+            housed_lower_validated[era] = 0  # False positive
+        else:
+            housed_lower_validated[era] = lower
+    
+    # Compute totals after cross-validation
+    housed_lower = sum(housed_lower_validated.values())
+    housed_upper = sum(housed_upper_by_age.values())
     
     # TC idle effective (lower and upper bounds)
     tc_idle_eff_lower_raw = match_data.get("tc_idle_effective_lower", {})
@@ -126,6 +152,10 @@ def extract_player_stats(match_data: dict, player_name: str) -> dict:
         opening = openings
     else:
         opening = None
+    
+    # TC idle breakdown
+    tc_idle_breakdown_raw = match_data.get("tc_idle_breakdown", {})
+    tc_idle_breakdown = tc_idle_breakdown_raw.get(player_name) if isinstance(tc_idle_breakdown_raw, dict) else None
 
     return {
         "civ": player_info.get("civ_name"),
@@ -137,6 +167,7 @@ def extract_player_stats(match_data: dict, player_name: str) -> dict:
         "imperial": age_times.get("imperial"),
         "tc_idle": tc_idle_val,
         "tc_idle_percent": tc_idle_pct,
+        "tc_idle_breakdown": tc_idle_breakdown,
         "housed_lower": housed_lower,
         "housed_upper": housed_upper,
         "tc_idle_eff_lower": tc_idle_eff_lower,
@@ -337,6 +368,15 @@ def chart_performance_grid(stats: list[dict]):
         ax.plot(i, e, marker=marker, markersize=ms, color=COLORS["accent_orange"], alpha=0.6)
     ax.plot(indices, eapm, linewidth=1, color=COLORS["accent_orange"], alpha=0.3)
     
+    # Outlier detection: mark >2 std dev with red circle
+    valid_eapm = [e for e in eapm if e > 0]
+    if len(valid_eapm) >= 3:
+        mean_eapm = np.mean(valid_eapm)
+        std_eapm = np.std(valid_eapm)
+        for i, e in enumerate(eapm):
+            if e > 0 and abs(e - mean_eapm) > 2 * std_eapm:
+                ax.scatter(i, e, s=120, facecolors='none', edgecolors='red', linewidths=2, zorder=5)
+    
     # Rolling average
     if len(eapm) >= 5:
         rolling = pd.Series(eapm).rolling(window=5, min_periods=1).mean()
@@ -356,6 +396,16 @@ def chart_performance_grid(stats: list[dict]):
     colors_duration = [COLORS["victory"] if w else COLORS["defeat"] for w in winners]
     
     bars = ax.bar(indices, durations, color=colors_duration, edgecolor='white', linewidth=0.5)
+    
+    # Outlier detection: mark >2 std dev with red circle
+    valid_durations = [d for d in durations if d > 0]
+    if len(valid_durations) >= 3:
+        mean_dur = np.mean(valid_durations)
+        std_dur = np.std(valid_durations)
+        for i, d in enumerate(durations):
+            if d > 0 and abs(d - mean_dur) > 2 * std_dur:
+                ax.scatter(i, d, s=120, facecolors='none', edgecolors='red', linewidths=2, zorder=5)
+    
     # Mark TG matches with diamond
     for i, (dur, dip) in enumerate(zip(durations, diplomacies)):
         if dip == "TG":
@@ -648,13 +698,14 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     losses = n_matches - wins
     win_rate = (wins / n_matches * 100) if n_matches > 0 else 0
     
-    # Feudal time average
+    # Feudal time average (trimmed mean)
     feudal_times = [s.get("feudal") for s in filtered_stats if s.get("feudal") and s.get("feudal") != 0]
-    avg_feudal = safe_avg_seconds(feudal_times)
+    avg_feudal_val = trimmed_mean(feudal_times)
+    avg_feudal = fmt(avg_feudal_val) if avg_feudal_val else "--:--"
     
-    # eAPM average
+    # eAPM average (trimmed mean)
     eapms = [s.get("eapm") for s in filtered_stats if s.get("eapm") and s.get("eapm") != 0]
-    avg_eapm = int(safe_mean(eapms)) if eapms else 0
+    avg_eapm = int(trimmed_mean(eapms)) if eapms else 0
     
     # Favorite civ
     civ_counts = Counter(s["civ"] for s in filtered_stats if s.get("civ"))
@@ -662,17 +713,18 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     fav_civ_name = favorite_civ[0]
     fav_civ_pct = (favorite_civ[1] / n_matches * 100) if n_matches > 0 else 0
     
-    # TC Idle Effective average (range: lower - upper)
+    # TC Idle Effective average (trimmed mean - range: lower - upper)
     tc_idle_eff_lowers = [s.get("tc_idle_eff_lower") for s in filtered_stats if s.get("tc_idle_eff_lower") is not None]
-    avg_tc_idle_eff_lower = round(safe_mean(tc_idle_eff_lowers)) if tc_idle_eff_lowers else 0
+    avg_tc_idle_eff_lower = round(trimmed_mean(tc_idle_eff_lowers)) if tc_idle_eff_lowers else 0
     
     tc_idle_eff_uppers = [s.get("tc_idle_eff_upper") for s in filtered_stats if s.get("tc_idle_eff_upper") is not None]
-    avg_tc_idle_eff_upper = round(safe_mean(tc_idle_eff_uppers)) if tc_idle_eff_uppers else 0
+    avg_tc_idle_eff_upper = round(trimmed_mean(tc_idle_eff_uppers)) if tc_idle_eff_uppers else 0
     
-    # Game duration average
+    # Game duration average (trimmed mean)
     durations = [s.get("duration") for s in filtered_stats if s.get("duration") and s.get("duration") != 0]
-    avg_duration = safe_avg_seconds(durations)
-    avg_duration_min = safe_mean(durations) / 60 if durations else 0
+    avg_duration_val = trimmed_mean(durations)
+    avg_duration = fmt(avg_duration_val) if avg_duration_val else "--:--"
+    avg_duration_min = avg_duration_val / 60 if avg_duration_val else 0
     
     # Recent form (last 5)
     recent_results = [s.get("winner", False) for s in filtered_stats[-5:]]
@@ -723,7 +775,7 @@ def generate_rich_scouting_pdf(stats: list[dict], opponent_name: str, output_pat
     pdf.set_text_color(127, 140, 141)
     n_1v1 = sum(1 for s in filtered_stats if s.get("diplomacy") == "1v1")
     n_tg = n_matches - n_1v1
-    subtitle = f"{n_matches} matches ({n_1v1} 1v1 / {n_tg} TG) | ELO: {current_elo}"
+    subtitle = f"{n_matches} matches ({n_1v1} 1v1 / {n_tg} TG) | ELO: {current_elo} | Trimmed mean (10%)"
     if tg_warning:
         subtitle += " ⚠️ Includes TG data"
     pdf.cell(0, 6, subtitle, ln=True, align="C")
