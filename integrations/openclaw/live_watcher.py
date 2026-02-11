@@ -211,8 +211,7 @@ def run_watcher(poll_interval: float, server_url: str) -> None:
                         # Push to overlay server
                         notify_server(info, server_url)
 
-                        # Also trigger scouting for the opponent
-                        trigger_scouting(info, server_url)
+                        # Overlay will auto-scout via /api/match-context polling (avoid duplicate requests)
 
                         # Write file for OpenClaw
                         notify_openclaw(info)
