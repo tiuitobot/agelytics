@@ -303,6 +303,8 @@
 const API = window.location.origin;
 let timerInterval = null;
 let timerEnd = null;
+let _lastCtxUpdatedAt = null;
+let _lastScoutFetchAt = 0;
 
 // Search on Enter
 document.getElementById('searchInput').addEventListener('keydown', e => {
@@ -324,6 +326,7 @@ async function doSearch() {
       throw new Error(err.detail || `Player not found (${resp.status})`);
     }
     const data = await resp.json();
+    _lastScoutFetchAt = Date.now();
     renderReport(data);
     startTimer(600); // 10 min
   } catch (e) {
@@ -596,9 +599,19 @@ setInterval(async () => {
   try {
     const resp = await fetch(`${API}/api/match-context`);
     const ctx = await resp.json();
+
+    if (!ctx || ctx.active === false) return;
+
     if (ctx.opponent_name) {
       const currentSearch = document.getElementById('searchInput').value.trim().toLowerCase();
-      if (currentSearch !== ctx.opponent_name.toLowerCase()) {
+      const ctxName = ctx.opponent_name.toLowerCase();
+      const ctxUpdated = ctx.updated_at ?? null;
+
+      const nameChanged = currentSearch !== ctxName;
+      const ctxChanged = ctxUpdated && ctxUpdated !== _lastCtxUpdatedAt;
+
+      if (nameChanged || ctxChanged) {
+        _lastCtxUpdatedAt = ctxUpdated;
         document.getElementById('searchInput').value = ctx.opponent_name;
         await doSearch();
         await showAutoMatchup(ctx.self_civ, ctx.opponent_civ);
@@ -609,6 +622,24 @@ setInterval(async () => {
     }
   } catch {}
 }, 5000);
+
+// Auto-refresh scouting data (keeps overlay alive without Ctrl+R)
+setInterval(async () => {
+  try {
+    const name = document.getElementById('searchInput').value.trim();
+    if (!name || !_lastReport) return;
+
+    // Refresh at most once per minute
+    if (Date.now() - _lastScoutFetchAt < 60000) return;
+
+    const resp = await fetch(`${API}/api/scout/${encodeURIComponent(name)}`);
+    if (!resp.ok) return;
+
+    const data = await resp.json();
+    _lastScoutFetchAt = Date.now();
+    renderReport(data);
+  } catch {}
+}, 10000);
 
 loadCivs();
 checkMatchContext();
