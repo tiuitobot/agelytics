@@ -233,11 +233,11 @@ def chart_performance_grid(stats: list[dict]):
     ]:
         valid_idx = [i for i, t in enumerate(times) if t is not None and t != 0]
         valid_times = [times[i] for i in valid_idx]
-        valid_markers = ['o' if diplomacies[i] == '1v1' else 'D' for i in valid_idx]
+        valid_markers = ['o' if diplomacies[i] == '1v1' else '*' for i in valid_idx]
         
         if valid_times:
             # Plot 1v1 and TG separately for different markers
-            for marker, mlabel in [('o', '1v1'), ('D', 'TG')]:
+            for marker, mlabel in [('o', '1v1'), ('*', 'TG')]:
                 m_idx = [vi for vi, vm in zip(valid_idx, valid_markers) if vm == marker]
                 m_times = [valid_times[j] for j, vm in enumerate(valid_markers) if vm == marker]
                 if m_times:
@@ -255,13 +255,13 @@ def chart_performance_grid(stats: list[dict]):
         Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', markersize=6, label='Feudal'),
         Line2D([0], [0], marker='o', color='w', markerfacecolor='orange', markersize=6, label='Castle'),
         Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=6, label='Imperial'),
-        Line2D([0], [0], marker='D', color='w', markerfacecolor='gray', markersize=6, label='TG match'),
+        Line2D([0], [0], marker='*', color='w', markerfacecolor='gray', markersize=8, label='TG match'),
     ]
     ax.legend(handles=legend_elements, loc='best', fontsize=6)
     
     ax.set_xlabel("Match Index")
     ax.set_ylabel("Time (seconds)")
-    ax.set_title("Age-up Times (◆=TG)", fontsize=10, fontweight='bold')
+    ax.set_title("Age-up Times (★=TG)", fontsize=10, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     ax.invert_yaxis()  # Faster at bottom
     
@@ -277,10 +277,10 @@ def chart_performance_grid(stats: list[dict]):
     # Mark TG matches with a diamond marker on top
     for i, (tc, dip) in enumerate(zip(tc_idle, diplomacies)):
         if dip == "TG":
-            ax.plot(i, tc + max(tc_idle) * 0.03, marker='D', color='gray', markersize=4, alpha=0.7)
+            ax.plot(i, tc + max(tc_idle) * 0.03, marker='*', color='gray', markersize=8, alpha=0.7)
     ax.set_xlabel("Match Index")
     ax.set_ylabel("TC Idle (seconds)")
-    ax.set_title("TC Idle Time per Match (◆=TG)", fontsize=10, fontweight='bold')
+    ax.set_title("TC Idle Time per Match (★=TG)", fontsize=10, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     
     # Bottom-left: eAPM per match with rolling average
@@ -290,8 +290,9 @@ def chart_performance_grid(stats: list[dict]):
     
     # Plot with different markers for 1v1 vs TG
     for i, (e, dip) in enumerate(zip(eapm, diplomacies)):
-        marker = 'o' if dip == '1v1' else 'D'
-        ax.plot(i, e, marker=marker, markersize=4, color=COLORS["accent_orange"], alpha=0.6)
+        marker = 'o' if dip == '1v1' else '*'
+        ms = 4 if dip == '1v1' else 8
+        ax.plot(i, e, marker=marker, markersize=ms, color=COLORS["accent_orange"], alpha=0.6)
     ax.plot(indices, eapm, linewidth=1, color=COLORS["accent_orange"], alpha=0.3)
     
     # Rolling average
@@ -315,10 +316,10 @@ def chart_performance_grid(stats: list[dict]):
     # Mark TG matches with diamond
     for i, (dur, dip) in enumerate(zip(durations, diplomacies)):
         if dip == "TG":
-            ax.plot(i, dur + max(durations) * 0.03, marker='D', color='gray', markersize=4, alpha=0.7)
+            ax.plot(i, dur + max(durations) * 0.03, marker='*', color='gray', markersize=8, alpha=0.7)
     ax.set_xlabel("Match Index")
     ax.set_ylabel("Duration (minutes)")
-    ax.set_title("Game Duration per Match (◆=TG)", fontsize=10, fontweight='bold')
+    ax.set_title("Game Duration per Match (★=TG)", fontsize=10, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     
     plt.tight_layout()
@@ -452,31 +453,53 @@ def chart_army_strategy_grid(stats: list[dict]):
 
 
 def chart_elo_evolution(stats: list[dict]):
-    """Full-width ELO evolution with trend line."""
+    """Full-width ELO evolution with trend line, split by 1v1/TG."""
     apply_style()
     
-    elos = [s.get("elo") for s in stats if s.get("elo")]
+    # Separate 1v1 and TG ELOs
+    elos_1v1_idx = [(i, s.get("elo")) for i, s in enumerate(stats) if s.get("elo") and s.get("diplomacy") == "1v1"]
+    elos_tg_idx = [(i, s.get("elo")) for i, s in enumerate(stats) if s.get("elo") and s.get("diplomacy") == "TG"]
     
-    if len(elos) < 2:
+    all_elos = [s.get("elo") for s in stats if s.get("elo")]
+    if len(all_elos) < 2:
         return None
     
     fig, ax = plt.subplots(figsize=(8, 3.5))
     
-    indices = list(range(len(elos)))
+    # Plot TG ELOs
+    if elos_tg_idx:
+        tg_x, tg_y = zip(*elos_tg_idx)
+        ax.scatter(tg_x, tg_y, marker='*', s=80, color=COLORS["text_secondary"], alpha=0.6, label="TG ELO", zorder=3)
     
-    ax.plot(indices, elos, marker='o', markersize=5, linewidth=2, 
-            color=COLORS["accent_orange"], label="ELO")
+    # Plot 1v1 ELOs
+    if elos_1v1_idx:
+        v1_x, v1_y = zip(*elos_1v1_idx)
+        ax.scatter(v1_x, v1_y, marker='o', s=50, color=COLORS["accent_orange"], alpha=0.8, label="1v1 ELO", zorder=4)
+    
+    # Connect all with light line
+    all_indices = list(range(len(stats)))
+    all_elos_padded = [s.get("elo", None) for s in stats]
+    valid = [(i, e) for i, e in enumerate(all_elos_padded) if e]
+    if valid:
+        vx, vy = zip(*valid)
+        ax.plot(vx, vy, linewidth=1, color=COLORS["accent_orange"], alpha=0.3)
     
     # Trend line
-    z = np.polyfit(indices, elos, 1)
-    p = np.poly1d(z)
-    ax.plot(indices, p(indices), "--", linewidth=2, 
-            color=COLORS["text_secondary"], alpha=0.7, label="Trend")
+    if len(all_elos) >= 2:
+        indices = list(range(len(all_elos)))
+        z = np.polyfit(indices, all_elos, 1)
+        p = np.poly1d(z)
+        ax.plot(indices, p(indices), "--", linewidth=2, 
+                color=COLORS["text_secondary"], alpha=0.5, label="Trend")
+    
+    # Note about replay ELO
+    ax.text(0.02, 0.02, "Note: ELO from replay header (snapshot at match time)", 
+            transform=ax.transAxes, fontsize=7, color='gray', alpha=0.7)
     
     ax.set_xlabel("Match Index", fontsize=10, fontweight='bold')
     ax.set_ylabel("ELO Rating", fontsize=10, fontweight='bold')
-    ax.set_title("ELO Evolution", fontsize=12, fontweight='bold', pad=10)
-    ax.legend(loc='best', frameon=False)
+    ax.set_title("ELO Evolution (●=1v1  ★=TG)", fontsize=12, fontweight='bold', pad=10)
+    ax.legend(loc='best', frameon=False, fontsize=8)
     ax.grid(axis='y', alpha=0.3)
     
     plt.tight_layout()
