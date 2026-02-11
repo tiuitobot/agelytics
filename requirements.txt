@@ -1,2 +1,5 @@
 pandas==3.0.0
 seaborn==0.13.2
+fastapi>=0.115.0
+uvicorn>=0.34.0
+httpx>=0.28.0

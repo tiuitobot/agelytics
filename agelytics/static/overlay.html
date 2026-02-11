@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agelytics — Scouting Overlay</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: rgba(10, 10, 20, 0.85);
+    color: #e0e0e0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* Header / Brand */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 165, 0, 0.3);
+    padding-bottom: 8px;
+  }
+  .header h1 {
+    font-size: 18px;
+    color: #ffa500;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .timer {
+    font-size: 13px;
+    color: #888;
+    font-variant-numeric: tabular-nums;
+  }
+  .timer.fading { opacity: 0.3; transition: opacity 2s; }
+
+  /* Search */
+  .search-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .search-bar input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: rgba(30, 30, 50, 0.9);
+    color: #e0e0e0;
+    font-size: 14px;
+    outline: none;
+  }
+  .search-bar input:focus { border-color: #ffa500; }
+  .search-bar button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #ffa500;
+    color: #111;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .search-bar button:hover { background: #ffb733; }
+  .search-bar button:disabled { opacity: 0.5; cursor: wait; }
+
+  /* Player card */
+  .player-card {
+    background: rgba(25, 25, 45, 0.9);
+    border: 1px solid rgba(255, 165, 0, 0.2);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .player-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    display: inline;
+  }
+  .player-country {
+    font-size: 13px;
+    color: #aaa;
+    margin-left: 6px;
+    text-transform: uppercase;
+  }
+  .elo-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .elo {
+    font-size: 28px;
+    font-weight: 800;
+    color: #ffa500;
+  }
+  .trend-arrow {
+    font-size: 20px;
+  }
+  .trend-rising { color: #4caf50; }
+  .trend-falling { color: #f44336; }
+  .trend-stable { color: #888; }
+  .rank-info {
+    font-size: 12px;
+    color: #888;
+  }
+  .streak {
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .streak-positive { color: #4caf50; }
+  .streak-negative { color: #f44336; }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .stat-card {
+    background: rgba(25, 25, 45, 0.9);
+    border: 1px solid rgba(255, 165, 0, 0.15);
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e0e0e0;
+  }
+
+  /* Civ list */
+  .section {
+    background: rgba(25, 25, 45, 0.9);
+    border: 1px solid rgba(255, 165, 0, 0.15);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: 12px;
+    color: #ffa500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+  .civ-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .civ-row:last-child { border-bottom: none; }
+  .civ-name { font-weight: 600; font-size: 14px; }
+  .civ-stats { font-size: 13px; color: #aaa; }
+  .wr-good { color: #4caf50; }
+  .wr-bad { color: #f44336; }
+  .wr-neutral { color: #ffa500; }
+
+  /* Matchup section */
+  .matchup-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .matchup-bar select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: rgba(30, 30, 50, 0.9);
+    color: #e0e0e0;
+    font-size: 13px;
+  }
+  .matchup-bar button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #555;
+    color: #e0e0e0;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .matchup-bar button:hover { background: #777; }
+  .matchup-result {
+    text-align: center;
+    padding: 8px;
+  }
+  .matchup-fav {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffa500;
+    margin-bottom: 4px;
+  }
+  .matchup-note {
+    font-size: 13px;
+    color: #aaa;
+  }
+
+  /* Civ detail */
+  .civ-detail { margin-top: 8px; }
+  .civ-detail .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin: 2px 4px 2px 0;
+  }
+  .tag-pro { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+  .tag-con { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+
+  /* Loading / error */
+  .status-msg {
+    text-align: center;
+    padding: 24px;
+    color: #888;
+    font-size: 14px;
+  }
+  .error { color: #f44336; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>⚔ AGELYTICS</h1>
+    <span id="timer" class="timer"></span>
+  </div>
+
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Enter opponent name..." autocomplete="off">
+    <button id="searchBtn" onclick="doSearch()">Scout</button>
+  </div>
+
+  <div id="content">
+    <div class="status-msg">Enter an opponent name to scout.</div>
+  </div>
+
+  <div class="section" style="margin-top: 8px;">
+    <div class="section-title">Civ Matchup Lookup</div>
+    <div class="matchup-bar">
+      <select id="civ1Select"></select>
+      <span style="color:#888;align-self:center">vs</span>
+      <select id="civ2Select"></select>
+      <button onclick="doMatchup()">Go</button>
+    </div>
+    <div id="matchupResult"></div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let timerInterval = null;
+let timerEnd = null;
+
+// Search on Enter
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+
+async function doSearch() {
+  const name = document.getElementById('searchInput').value.trim();
+  if (!name) return;
+  const btn = document.getElementById('searchBtn');
+  const content = document.getElementById('content');
+  btn.disabled = true;
+  content.innerHTML = '<div class="status-msg">Scouting...</div>';
+
+  try {
+    const resp = await fetch(`${API}/api/scout/${encodeURIComponent(name)}`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `Player not found (${resp.status})`);
+    }
+    const data = await resp.json();
+    renderReport(data);
+    startTimer(600); // 10 min
+  } catch (e) {
+    content.innerHTML = `<div class="status-msg error">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderReport(d) {
+  const p = d.player;
+  const trendMap = { rising: ['↑', 'trend-rising'], falling: ['↓', 'trend-falling'], stable: ['→', 'trend-stable'] };
+  const [arrow, trendClass] = trendMap[d.elo_trend] || ['→', 'trend-stable'];
+
+  let streakHtml = '';
+  if (d.streak) {
+    const cls = d.streak > 0 ? 'streak-positive' : 'streak-negative';
+    const label = d.streak > 0 ? `${d.streak}W streak` : `${Math.abs(d.streak)}L streak`;
+    streakHtml = `<div class="streak ${cls}">🔥 ${label}</div>`;
+  }
+
+  let civsHtml = '';
+  if (d.top_civs && d.top_civs.length) {
+    civsHtml = d.top_civs.map(c => {
+      const wrClass = c.win_rate >= 55 ? 'wr-good' : c.win_rate <= 45 ? 'wr-bad' : 'wr-neutral';
+      return `<div class="civ-row">
+        <span class="civ-name">${c.civ}</span>
+        <span class="civ-stats">${c.games}G — <span class="${wrClass}">${c.win_rate}% WR</span></span>
+      </div>`;
+    }).join('');
+  }
+
+  let mapsHtml = '';
+  if (d.top_maps && d.top_maps.length) {
+    mapsHtml = d.top_maps.map(m =>
+      `<div class="civ-row"><span class="civ-name">${m.map}</span><span class="civ-stats">${m.games}G</span></div>`
+    ).join('');
+  }
+
+  // Civ detail for top civ
+  let civDetailHtml = '';
+  if (d.top_civs && d.top_civs.length) {
+    const topCiv = d.top_civs[0].civ;
+    fetchCivDetail(topCiv);
+  }
+
+  const wr = d.win_rate || {};
+  const wrClass = (wr.win_rate||0) >= 55 ? 'wr-good' : (wr.win_rate||0) <= 45 ? 'wr-bad' : 'wr-neutral';
+
+  document.getElementById('content').innerHTML = `
+    <div class="player-card">
+      <span class="player-name">${p.alias}</span>
+      <span class="player-country">${p.country ? '🌍 ' + p.country.toUpperCase() : ''}</span>
+      <div class="elo-row">
+        <span class="elo">${p.rating}</span>
+        <span class="trend-arrow ${trendClass}">${arrow}</span>
+        <span class="rank-info">Rank #${p.rank.toLocaleString()} · Peak ${p.highest_rating}</span>
+      </div>
+      ${streakHtml}
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Win Rate (Last ${wr.total || 20})</div>
+        <div class="stat-value ${wrClass}">${wr.win_rate || 0}%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Opening Style</div>
+        <div class="stat-value" style="font-size:13px">${d.opening_tendency || 'Unknown'}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Top Civilizations</div>
+      ${civsHtml || '<div class="status-msg">No data</div>'}
+    </div>
+
+    <div class="section">
+      <div class="section-title">Favorite Maps</div>
+      ${mapsHtml || '<div class="status-msg">No data</div>'}
+    </div>
+
+    <div class="section" id="civDetailSection" style="display:none">
+      <div class="section-title" id="civDetailTitle">Civ Detail</div>
+      <div id="civDetailContent"></div>
+    </div>
+  `;
+}
+
+async function fetchCivDetail(civName) {
+  try {
+    const resp = await fetch(`${API}/api/civ/${encodeURIComponent(civName)}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const section = document.getElementById('civDetailSection');
+    if (!section) return;
+    section.style.display = 'block';
+    document.getElementById('civDetailTitle').textContent = `${data.civ} — Strengths & Weaknesses`;
+
+    let html = '<div class="civ-detail">';
+    html += (data.pros || []).map(p => `<span class="tag tag-pro">✓ ${p}</span>`).join('');
+    html += (data.cons || []).map(c => `<span class="tag tag-con">✗ ${c}</span>`).join('');
+    if (data.unique_units) html += `<div style="margin-top:6px;font-size:12px;color:#aaa">UU: ${data.unique_units.join(', ')}</div>`;
+    html += '</div>';
+    document.getElementById('civDetailContent').innerHTML = html;
+  } catch {}
+}
+
+// Matchup
+async function loadCivs() {
+  try {
+    const resp = await fetch(`${API}/api/civs`);
+    const data = await resp.json();
+    const civs = data.civs || [];
+    const s1 = document.getElementById('civ1Select');
+    const s2 = document.getElementById('civ2Select');
+    civs.forEach(c => {
+      s1.innerHTML += `<option value="${c}">${c}</option>`;
+      s2.innerHTML += `<option value="${c}">${c}</option>`;
+    });
+    if (civs.length > 1) s2.selectedIndex = 1;
+  } catch {}
+}
+
+async function doMatchup() {
+  const c1 = document.getElementById('civ1Select').value;
+  const c2 = document.getElementById('civ2Select').value;
+  if (!c1 || !c2) return;
+  const el = document.getElementById('matchupResult');
+  el.innerHTML = '<div class="status-msg">Loading...</div>';
+  try {
+    const resp = await fetch(`${API}/api/matchup/${encodeURIComponent(c1)}/${encodeURIComponent(c2)}`);
+    const data = await resp.json();
+    el.innerHTML = `
+      <div class="matchup-result">
+        <div class="matchup-fav">${data.favorability}</div>
+        <div class="matchup-note">${data.note}</div>
+      </div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="status-msg error">${e.message}</div>`;
+  }
+}
+
+// Timer
+function startTimer(seconds) {
+  clearInterval(timerInterval);
+  timerEnd = Date.now() + seconds * 1000;
+  const el = document.getElementById('timer');
+  el.classList.remove('fading');
+  timerInterval = setInterval(() => {
+    const remaining = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    if (remaining <= 0) {
+      clearInterval(timerInterval);
+      el.classList.add('fading');
+    }
+  }, 1000);
+}
+
+loadCivs();
+</script>
+</body>
+</html>
