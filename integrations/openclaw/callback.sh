@@ -47,7 +47,15 @@ else:
         ;;
     agelytics_analyze_*)
         MATCH_ID="${CALLBACK#agelytics_analyze_}"
-        echo "ANALYZE_MATCH:$MATCH_ID"
+        # Output report text for AI to analyze, then generate PDF
+        PDF_PATH="/tmp/agelytics_ai_${MATCH_ID}.pdf"
+        echo "ANALYZE_MATCH:$MATCH_ID:$PDF_PATH"
+        run_agelytics python -m agelytics report --id "$MATCH_ID" -p "$PLAYER" 2>&1
+        ;;
+    agelytics_deep_*)
+        MATCH_ID="${CALLBACK#agelytics_deep_}"
+        PDF_PATH="/tmp/agelytics_deep_${MATCH_ID}.pdf"
+        echo "DEEP_COACH:$MATCH_ID:$PDF_PATH"
         run_agelytics python -m agelytics report --id "$MATCH_ID" -p "$PLAYER" 2>&1
         ;;
     agelytics_day_*)
