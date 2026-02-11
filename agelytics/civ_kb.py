@@ -364,14 +364,14 @@ def get_matchup(civ1: str, civ2: str) -> dict:
     key1 = (civ1, civ2)
     key2 = (civ2, civ1)
 
-    favorability = "Unknown"
-    note = "No matchup data available for this pairing."
+    favorability = None
+    note = None
 
     if key1 in _MATCHUPS:
         favorability, note = _MATCHUPS[key1]
     elif key2 in _MATCHUPS:
-        fav, note = _MATCHUPS[key2]
-        # Flip favorability perspective
+        fav, n = _MATCHUPS[key2]
+        note = n
         if "Slight" in fav:
             other = fav.replace("Slight ", "")
             if other == civ2:
@@ -380,6 +380,19 @@ def get_matchup(civ1: str, civ2: str) -> dict:
                 favorability = f"Slight {civ1}"
         else:
             favorability = fav
+
+    # Auto-generate note from pros/cons when no specific matchup exists
+    if not favorability:
+        info1 = CIV_DATA.get(civ1, {})
+        info2 = CIV_DATA.get(civ2, {})
+        if info1 and info2:
+            pros1 = ", ".join(info1.get("pros", [])[:2])
+            pros2 = ", ".join(info2.get("pros", [])[:2])
+            favorability = "Even (estimated)"
+            note = f"{civ1}: {pros1}. {civ2}: {pros2}. No specific data — check civ strengths."
+        else:
+            favorability = "Unknown"
+            note = "No matchup data available for this pairing."
 
     return {
         "civ1": civ1,
