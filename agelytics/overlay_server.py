@@ -1,7 +1,6 @@
 """FastAPI server for the scouting overlay."""
 
 from pathlib import Path
-import time
 from pydantic import BaseModel
 from typing import Optional
 
@@ -73,24 +72,20 @@ class MatchContext(BaseModel):
     opponent_country: str | None = None
     map: str | None = None
     match_id: int | None = None
-    updated_at: float | None = None
 
 
 @app.post("/api/match-context")
 def set_match_context(ctx: MatchContext):
     """Set current match context (called by game_watcher)."""
     global _match_context
-    payload = ctx.model_dump()
-    payload["active"] = True
-    payload["updated_at"] = payload.get("updated_at") or time.time()
-    _match_context = payload
+    _match_context = ctx.model_dump()
     return {"status": "ok", "context": _match_context}
 
 
 @app.get("/api/match-context")
 def get_match_context():
     """Get current match context."""
-    return _match_context or {"active": False, "updated_at": None}
+    return _match_context or {"active": False}
 
 
 @app.get("/overlay")
