@@ -133,28 +133,41 @@ conn.close()
         exit 0
         ;;
         
-    agelytics_analyze_*|agelytics_deep_*)
+    agelytics_analyze_*)
         MATCH_ID="${CALLBACK#agelytics_analyze_}"
-        MATCH_ID="${MATCH_ID#agelytics_deep_}"  # handles both prefixes
         
         cd "$REPO" && source "$VENV"
         
-        # Extract data for AI (deterministic extraction)
-        python3 -m integrations.openclaw.deep_coach "$MATCH_ID" 2>&1
+        # Extract data for AI
+        MATCH_DATA=$(python3 -m integrations.openclaw.deep_coach "$MATCH_ID" 2>&1)
         
-        # Also generate PDF path
-        PDF_PATH="/tmp/agelytics_match_${MATCH_ID}.pdf"
-        python3 -c "
-from agelytics.pdf_report import generate_match_pdf
-from agelytics.db import get_db, get_match_by_id
-db = get_db()
-match = get_match_by_id(db, $MATCH_ID)
-if match:
-    generate_match_pdf(match, '$PDF_PATH')
-" 2>&1 | grep -v "UserWarning\|tight_layout" || true
+        # Output: prompt type + match ID + data (for Haiku spawn)
+        echo "---AI_TYPE---"
+        echo "analyze"
+        echo "---MATCH_ID---"
+        echo "$MATCH_ID"
+        echo "---MATCH_DATA---"
+        echo "$MATCH_DATA"
         
-        echo "---PDF_PATH---"
-        echo "$PDF_PATH"
+        # Exit 2 = needs AI processing
+        exit 2
+        ;;
+        
+    agelytics_deep_*)
+        MATCH_ID="${CALLBACK#agelytics_deep_}"
+        
+        cd "$REPO" && source "$VENV"
+        
+        # Extract data for AI
+        MATCH_DATA=$(python3 -m integrations.openclaw.deep_coach "$MATCH_ID" 2>&1)
+        
+        # Output: prompt type + match ID + data (for Haiku spawn)
+        echo "---AI_TYPE---"
+        echo "deep"
+        echo "---MATCH_ID---"
+        echo "$MATCH_ID"
+        echo "---MATCH_DATA---"
+        echo "$MATCH_DATA"
         
         # Exit 2 = needs AI processing
         exit 2
