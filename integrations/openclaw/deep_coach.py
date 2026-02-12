@@ -140,7 +140,7 @@ def build_prompt(match_id: int, player: str = "blzulian",
 - **{ctx['my_civ']} vs {ctx['opp_civ']}** | {match.get('map_name', '?')} | {duration_min:.0f}min
 - **ELO:** {me.get('elo', '?')} vs {opp.get('elo', '?')}
 - **eAPM:** {me.get('eapm', '?')} vs {opp.get('eapm', '?')}
-- **TC idle:** {me.get('tc_idle_secs', 0)/60:.1f}min ({ctx['player']}) vs {opp.get('tc_idle_secs', 0)/60:.1f}min ({opp.get('name', '?')})
+- **TC idle:** {(me.get('tc_idle_secs') or 0)/60:.1f}min ({ctx['player']}) vs {(opp.get('tc_idle_secs') or 0)/60:.1f}min ({opp.get('name', '?')})
 """)
     
     # Age-ups
