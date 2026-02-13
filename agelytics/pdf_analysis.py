@@ -276,11 +276,34 @@ class AnalysisPDF(FPDF):
             "\u2013": "-", "\u2014": "-", "\u2018": "'", "\u2019": "'",
             "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u2022": "-",
             "\u2192": "->", "\u2190": "<-", "\u2715": "x",
+            # Emoji replacements for coaching
+            "\u2705": "[OK]",      # ✅
+            "\u26a0\ufe0f": "[!]", # ⚠️
+            "\u26a0": "[!]",       # ⚠ (without variation selector)
+            "\U0001f534": "[!!]",  # 🔴
+            "\U0001f7e1": "[!]",   # 🟡
+            "\U0001f7e2": "[OK]",  # 🟢
+            "\u2757": "[!]",       # ❗
+            "\u274c": "[X]",       # ❌
+            "\U0001f3f3\ufe0f": "[RESIGN]",  # 🏳️
+            "\u2b50": "*",         # ⭐
+            "\U0001f4ca": "",      # 📊
+            "\U0001f4cb": "",      # 📋
+            "\U0001f4c8": "",      # 📈
+            "\u2694\ufe0f": "",    # ⚔️
+            "\U0001f6e1\ufe0f": "",# 🛡️
+            "\u26a1": "",          # ⚡
+            "\U0001f3da\ufe0f": "",# 🏚️
+            "\U0001f3e0": "",      # 🏠
+            "\U0001f3f0": "",      # 🏰
+            "\U0001f5e1\ufe0f": "",# 🗡️
+            "\u23f1\ufe0f": "",    # ⏱️
+            "\u23f1": "",          # ⏱
         }
         for k, v in replacements.items():
             text = text.replace(k, v)
-        # Drop remaining non-latin1
-        return text.encode("latin-1", errors="replace").decode("latin-1")
+        # Strip any remaining emoji/non-latin1
+        return text.encode("latin-1", errors="ignore").decode("latin-1")
 
     def _write_rich_text(self, text, indent=10, size=10):
         """Write text with **bold** support."""

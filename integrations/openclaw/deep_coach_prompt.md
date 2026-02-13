@@ -70,6 +70,18 @@ Lista de métricas: atual → meta
 - Sem markdown tables (formato Telegram)
 - Sem introduções genéricas tipo "Vamos analisar..."
 
+## FORMATO OBRIGATÓRIO PARA PDF (CRÍTICO)
+O texto será renderizado em PDF por um parser markdown. Seguir EXATAMENTE:
+- Headers de seção: `## Análise Forense`, `## Contexto do Matchup`, `## Fase 1: Dark Age (0:00 - 10:27)`, etc.
+- Bold: `**texto em negrito**`
+- Bullets: `- texto do bullet`
+- Listas numeradas: `1. texto do item`
+- Nota final: `Nota: 7.5/10 - justificativa`
+- NÃO usar emojis (🔴, ✅, ⚠️). Usar texto: [OK], [!], [!!], [X]
+- NÃO usar ### (só ##)
+- NÃO usar markdown tables
+- Seções de coaching rules: `- [OK] A1: Feudal -33s (PASS)` ou `- [!] E1: TC idle 5min (WARNING)`
+
 ## Envio
 Enviar para Bruno via message tool:
 - action=send, channel=telegram, target=8216818134
