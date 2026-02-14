@@ -1,3 +1,4 @@
+<!-- maintained by agent:agelytics -->
 # Agelytics 📊⚔️
 
 **AI-powered Age of Empires 2 DE replay analyzer, coaching system, and progress tracker.**
