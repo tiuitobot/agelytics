@@ -1,7 +1,7 @@
 {
   "repo": "agelytics",
   "version": "1.1.0-dev",
-  "lastUpdated": "2026-06-03T00:00:00Z",
+  "lastUpdated": "2026-06-03T12:00:00Z",
   "_cursor": "e592dd61b9bc783e95cf61bb27189f317a7e9b0d",
   "keyInfo": [
     {
@@ -51,7 +51,7 @@
       "status": "active",
       "date": "2026-02-12",
       "source": "git commit 3305686",
-      "_sweepHits": 3
+      "_sweepHits": 2
     },
     {
       "id": "K026",
@@ -60,7 +60,7 @@
       "status": "active",
       "date": "2026-02-14",
       "source": "git commit 411e8e4",
-      "_sweepHits": 3
+      "_sweepHits": 2
     },
     {
       "id": "K027",
@@ -69,7 +69,7 @@
       "status": "active",
       "date": "2026-02-13",
       "source": "git commit 75017ae",
-      "_sweepHits": 3
+      "_sweepHits": 2
     }
   ]
 }
