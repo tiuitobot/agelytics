@@ -1,5 +1,329 @@
 {
   "repo": "agelytics",
   "description": "Key info entries that were used in implementation or became obsolete. Tracks consumption status.",
-  "archived": []
+  "archived": [
+    {
+      "id": "K003",
+      "info": "WorldsEdge API civ IDs are alphabetical 0-indexed, NOT aoe2.net IDs. Cross-referenced 9/9 confirmed. Use aoe2companion for civ names instead.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "manual cross-reference",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K004",
+      "info": "Overlay server: port 5555, agelytics/overlay_server.py (FastAPI). Access at http://localhost:5555/overlay. Branch: feature/scouting-overlay (~18 commits).",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "implementation",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K005",
+      "info": "Live watcher: integrations/openclaw/live_watcher.py — monitors savegame dir for new MP Replay files. Triggers API scouting on new game detected.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "implementation",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K006",
+      "info": "Callback handler: integrations/openclaw/callback.sh — routes Telegram inline button callbacks (agelytics_report_{id}, agelytics_analyze_{id}, agelytics_deep_{id}, etc).",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "implementation",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K007",
+      "info": "Deep Coach style: forensic phase-by-phase format. Style guide at knowledge/aoe2/deep-coach-style-guide.md. NOT generic timeline+insights.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "Bruno feedback + style guide",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K008",
+      "info": "recordGame field in aoe2companion API response indicates if replay exists on Microsoft servers. true = downloadable via aoe.ms URL.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "API response inspection",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K009",
+      "info": "Overlay shows pre-game scouting only (10 min), then hides. In-game timers = borderline cheating per Bruno's call.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "Bruno decision",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K010",
+      "info": "Bruno's AoE2 profile: blzulian, profile_id 24635675, Steam ID 76561198028659538, ELO ~619, main civ Franks.",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "Bruno",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K011",
+      "info": "Savegame directory: /mnt/c/Users/Administrador/Games/Age of Empires 2 DE/76561198028659538/savegame/",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "system inspection",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K012",
+      "info": "Pandas + seaborn OK in Agelytics (Bruno reversed previous constraint). Used in PDF reports.",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-09",
+      "source": "Bruno decision",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K013",
+      "info": "Semver from v1.0.0. MAJOR.MINOR.PATCH. CHANGELOG.md in Keep a Changelog format.",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-09",
+      "source": "Bruno decision",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K014",
+      "info": "v1.1.0 pending: auto-refresh JS (setInterval polling), watcher full automation, branch merge to master.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "sprint planning",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K016",
+      "info": "v1.2.1 Tactical Impact: use opponent's replay baseline as natural control group for causal inference. Bruno's idea — genuinely novel.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "Bruno idea",
+      "context": "Baseline pessoal do oponente como controle natural → impacto causal com confidence scoring. Genuinamente inédito em analytics de RTS.",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K017",
+      "info": "Civ KB complete: 45/45 civs in knowledge/aoe2/civs/. Matchup lookup functional.",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-10",
+      "source": "implementation",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K018",
+      "info": "Not all replays available on Microsoft servers. Older games get removed frequently. Check recordGame field before attempting download.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "aoe2insights FAQ",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K019",
+      "info": "MS rate limit: 2s delay between downloads is stable. 0.5s causes 429 after ~7 requests. Retry backoff: 5s/10s/15s on 429.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "empirical testing with Urubu (19/20 replays, 38MB)",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K020",
+      "info": "Player disambiguation: WorldsEdge search returns multiple players with same name. search_player picks most active (games+rating). 4 'Urubu' players found, correct one auto-selected.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "Urubu test — Bruno confirmed correct player",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K021",
+      "info": "Scouting data priority: 1v1 RM first. If n<5, complement with team games + tag '⚠️ Inclui dados TG (amostra 1v1: n=X)'. Team data is noisier (pocket/flank roles, negotiated civs).",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "Bruno decision",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K022",
+      "info": "Dual-bound housing: lower (heuristic 2+ houses) + upper (pop timeline - deaths). Reports MUST show range. Parser is unified (parser.py), but PDF renderers are separate (pdf_report.py, pdf_analysis.py, pdf_scouting.py) — all must consume the same housing fields.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "brainstorm with Bruno",
+      "context": "Bruno: toda evolução deve ser aplicada a implementações similares. Engine unificado, reports separados. Match report pós-jogo precisa ganhar mesmas métricas do scouting.",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K023",
+      "info": "PDF engine unification planned: extract shared render logic (KPI cards, chart grids, text sections) into pdf_engine.py + template configs per report type. Do AFTER housing dual-bound is closed.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "Bruno decision",
+      "context": "Bruno confirmou: sistema de PDF é exatamente o mesmo, só muda fonte e contexto. Unificar depois do housing.",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T12:00:00-03:00"
+    },
+    {
+      "id": "K025",
+      "info": "pdf_disclaimer.py generates metric registry disclaimer page with badges per metric classification (deterministic/experimental/derived). Added in 9ee588c.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "commit 9ee588c",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K026",
+      "info": "TC idle time classified into micro/macro/AFK buckets in parser.py. Scouting aggregates use trimmed mean + cross-validation for housing bounds.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "commit f20b1cb",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K027",
+      "info": "TC idle breakdown (micro/macro/AFK) persisted in DB (db.py) and rendered in PDF match report via pdf_report.py.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "commit bc87b02",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K028",
+      "info": "Overlay auto-refreshes by polling match-context updated_at timestamp via overlay_server.py + overlay.html. No manual reload needed after match end.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "commit 6fbb1cf",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K029",
+      "info": "live_watcher.py triggers scouting by opponent name (not profile ID). Bug fixed in 12286d3.",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "commit 12286d3",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K030",
+      "info": "Scouting aggregates use winsorized mean (not raw mean) to reduce outlier skew. Applied in pdf_scouting.py and scouting_report.py.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "commit c61928e",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K031",
+      "info": "Onboarding guide at documentation/ONBOARDING.md. Overlay prewarms on watcher startup (documented in live_watcher.py).",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-11",
+      "source": "commit 985caf2",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K032",
+      "info": "quick_report.py generates deterministic KPI text for Telegram (zero AI): result, civs, map, duration, age-ups, eAPM, TC idle, housed count, TCs, army composition.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-12",
+      "source": "commit 734fea4",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K033",
+      "info": "dispatch.sh routes Telegram callbacks: report/day/stats are zero-AI (direct send via telegram_send.sh); analyze/deep exit 2 to signal Haiku spawn to caller.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-12",
+      "source": "commit 844cc02",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K034",
+      "info": "Two AI prompt templates: deep_coach_prompt.md (forensic phase-by-phase, causal chains, benchmarks) and analyze_prompt.md (lighter overview + score). Both in integrations/openclaw/.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-12",
+      "source": "commit 262e832",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K035",
+      "info": "pdf_analysis.py sanitizes 20+ emoji to text (e.g. OK, !!, !) before PDF rendering. Deep coach prompt enforces ## headers, **bold**, no emojis.",
+      "importance": "medium",
+      "status": "obsolete",
+      "date": "2026-02-12",
+      "source": "commit 1813a88",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    },
+    {
+      "id": "K036",
+      "info": "scripts/healthcheck.sh: cron every 5min, auto-restarts overlay+watcher if down (WSL2 memory/idle timeout). Log at /tmp/agelytics_healthcheck.log.",
+      "importance": "high",
+      "status": "obsolete",
+      "date": "2026-02-13",
+      "source": "commit 75017ae",
+      "_sweepHits": 0,
+      "archivedAt": "2026-03-24T23:59:00-03:00"
+    }
+  ]
 }
