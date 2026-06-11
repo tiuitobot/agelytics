@@ -1,7 +1,7 @@
 {
   "repo": "agelytics",
   "version": "1.1.0-dev",
-  "lastUpdated": "2026-06-03T12:00:00Z",
+  "lastUpdated": "2026-06-11T00:00:00Z",
   "_cursor": "e592dd61b9bc783e95cf61bb27189f317a7e9b0d",
   "keyInfo": [
     {
@@ -43,33 +43,6 @@
       "source": "Bruno requirement",
       "context": "Bruno (economist rigor): all metrics need formal definition, classification (deterministic/experimental/derived), and methodology disclaimers in reports.",
       "_sweepHits": 3
-    },
-    {
-      "id": "K025",
-      "info": "Emojis back in Telegram text, clean version for PDF. Model: Sonnet low",
-      "importance": "high",
-      "status": "active",
-      "date": "2026-02-12",
-      "source": "git commit 3305686",
-      "_sweepHits": 2
-    },
-    {
-      "id": "K026",
-      "info": "Add agent:agelytics maintenance header to README",
-      "importance": "medium",
-      "status": "active",
-      "date": "2026-02-14",
-      "source": "git commit 411e8e4",
-      "_sweepHits": 2
-    },
-    {
-      "id": "K027",
-      "info": "Healthcheck script + cron para manter overlay/watcher rodando",
-      "importance": "medium",
-      "status": "active",
-      "date": "2026-02-13",
-      "source": "git commit 75017ae",
-      "_sweepHits": 2
     }
   ]
 }
