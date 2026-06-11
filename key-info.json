@@ -1,7 +1,7 @@
 {
   "repo": "agelytics",
   "version": "1.1.0-dev",
-  "lastUpdated": "2026-06-03T12:00:00Z",
+  "lastUpdated": "2026-06-11T00:00:00Z",
   "_cursor": "1c81b83c86fda856cf9992c46b90c85f2f1cac3f",
   "keyInfo": [
     {
@@ -43,33 +43,6 @@
       "source": "Bruno requirement",
       "context": "Bruno (economist rigor): all metrics need formal definition, classification (deterministic/experimental/derived), and methodology disclaimers in reports.",
       "_sweepHits": 3
-    },
-    {
-      "id": "K025",
-      "info": "Enrich scouting PDF with real API ELO ratings (profile_id param)",
-      "importance": "high",
-      "status": "active",
-      "date": "2026-02-11",
-      "source": "git commit 646cc0f",
-      "_sweepHits": 2
-    },
-    {
-      "id": "K026",
-      "info": "Update aggregate methodology to winsorized mean",
-      "importance": "medium",
-      "status": "active",
-      "date": "2026-02-11",
-      "source": "git commit d764e70",
-      "_sweepHits": 2
-    },
-    {
-      "id": "K027",
-      "info": "Switch scouting aggregates to winsorized mean",
-      "importance": "medium",
-      "status": "active",
-      "date": "2026-02-11",
-      "source": "git commit 5f53357",
-      "_sweepHits": 2
     }
   ]
 }
